@@ -113,6 +113,7 @@ export function useSpringTrigger({
     if (
       isMobileDisabled(
         springsConfig.disableOnMobile.springtrigger || disableOnMobile,
+        width,
       )
     ) {
       return false;

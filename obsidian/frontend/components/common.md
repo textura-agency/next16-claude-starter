@@ -45,6 +45,42 @@ The modal locks scroll through the Lenis [[smooth-scroll|scroll store]]
 > The privacy-policy link points to `/privacy-policy` — that route does not exist
 > yet. Placeholder consent copy should be reviewed before launch.
 
+## Grid — adaptive scaling (`grid/`)
+
+The **adaptive scaling grid** keeps a rem-based layout proportional across every
+viewport by scaling the root (`<html>`) font-size. Design in `rem` once, and the
+whole UI scales as one unit. Lives in `src/components/common/grid/`.
+
+| File | Role |
+|------|------|
+| `grid.config.ts` | Breakpoints + `FONT_BASE` — the single source of truth for the grid |
+| `adaptive-grid.tsx` | `<AdaptiveGrid>` client component — drives the scale-up, renders `null` |
+| `index.ts` | Barrel exports — `AdaptiveGrid`, `GRID_BREAKPOINTS`, … |
+
+**How it works** — two halves cover the whole viewport range:
+
+- **Scale down** (viewport ≤ 1920px) — `vw`-based `html { font-size }` media
+  queries in `globals.css`. At each breakpoint's design base width the root
+  font-size resolves to 16px; between breakpoints it tracks the viewport.
+- **Scale up** (viewport > 1920px) — the `<AdaptiveGrid>` component sets an
+  inline `html` font-size at runtime via [[hooks|`useAdaptiveGrid`]], so the
+  design keeps growing (damped by `coef`) on large displays.
+
+The `globals.css` media queries and `grid.config.ts` describe the same
+breakpoints — **keep them in sync** (formula: `font-size = 16 * 100 / baseWidth vw`).
+
+**Mounting** — the root layout renders `<AdaptiveGrid />` inside `ScrollLayout`:
+```tsx
+import { AdaptiveGrid } from "@/components/common/grid";
+```
+Mount it once. Props: `baseWidth` (defaults to the largest breakpoint) and
+`coef` (0–1 scale-up damping, default `0.6666`).
+
+> [!note]
+> This replaced a `styled-components`-based scaling system that was dropped into
+> `common/` — see [[decisions-log]] ADR-0008. `styled-components` is **not** a
+> project dependency; the scale-down CSS lives in `globals.css` per [[design-system]].
+
 ## Skeleton loaders
 
 Three skeleton components for `loading` states of async-data components — every

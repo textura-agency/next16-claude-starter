@@ -103,12 +103,18 @@ export const Hover = forwardRef<HTMLElement, SpringProps & { tag?: Tags }>(
 
     useEffect(() => {
       if (
-        isMobileDisabled(springsConfig.disableOnMobile.hover || disableOnMobile)
+        isMobileDisabled(
+          springsConfig.disableOnMobile.hover || disableOnMobile,
+          width,
+        )
       ) {
         return;
       }
 
-      if (!trigger?.current) {
+      // Snapshot the node so the cleanup detaches from the same element the
+      // effect attached to, even if `trigger.current` changes later.
+      const node = trigger?.current;
+      if (!node) {
         return;
       }
       const handleMouseEnter = () => {
@@ -117,12 +123,12 @@ export const Hover = forwardRef<HTMLElement, SpringProps & { tag?: Tags }>(
       const handleMouseLeave = () => {
         setHovered(false);
       };
-      trigger.current.addEventListener("mouseenter", handleMouseEnter);
-      trigger.current.addEventListener("mouseleave", handleMouseLeave);
+      node.addEventListener("mouseenter", handleMouseEnter);
+      node.addEventListener("mouseleave", handleMouseLeave);
 
       return () => {
-        trigger.current?.removeEventListener("mouseenter", handleMouseEnter);
-        trigger.current?.removeEventListener("mouseleave", handleMouseLeave);
+        node.removeEventListener("mouseenter", handleMouseEnter);
+        node.removeEventListener("mouseleave", handleMouseLeave);
       };
     }, [trigger, disableOnMobile, width]);
 
@@ -152,7 +158,10 @@ export const Hover = forwardRef<HTMLElement, SpringProps & { tag?: Tags }>(
 
     const active = useMemo(() => {
       if (
-        isMobileDisabled(springsConfig.disableOnMobile.hover || disableOnMobile)
+        isMobileDisabled(
+          springsConfig.disableOnMobile.hover || disableOnMobile,
+          width,
+        )
       ) {
         return false;
       }
@@ -184,7 +193,17 @@ export const Hover = forwardRef<HTMLElement, SpringProps & { tag?: Tags }>(
           immediate: immediateOut,
         });
       }
-    }, [active, api, to, from, config, delayIn, delayOut, immediateOut]);
+    }, [
+      active,
+      api,
+      to,
+      from,
+      config,
+      delayIn,
+      delayOut,
+      immediateOut,
+      disableOnMobile,
+    ]);
 
     return (
       <AnimatedVarTextTag

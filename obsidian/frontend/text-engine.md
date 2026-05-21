@@ -5,7 +5,7 @@ updated: 2026-05-21
 
 # Text Engine — `spring-text-engine`
 
-All **text animation** is handled by the `spring-text-engine` package (`^0.1.3`).
+All **text animation** is handled by the `spring-text-engine` package (`^0.1.5`).
 **Do not build custom text-animation components.** For non-text motion see
 [[animation-system]].
 

@@ -86,7 +86,7 @@ export const Inview = forwardRef<HTMLElement, SpringProps & { tag?: Tags }>(
     ref,
   ) => {
     const innerRef = useRef<HTMLElement>(null);
-    const [inViewRef, inView] = useDynamicInView({
+    const [setInViewNode, inView] = useDynamicInView({
       trigger: trigger,
     });
     const isAnimated = useRef(false);
@@ -114,7 +114,7 @@ export const Inview = forwardRef<HTMLElement, SpringProps & { tag?: Tags }>(
             }
           }
         };
-        window.addEventListener("scroll", handleScroll);
+        window.addEventListener("scroll", handleScroll, { passive: true });
         return () => window.removeEventListener("scroll", handleScroll);
       }
     }, [mode, disableOnMobile, width]);
@@ -123,6 +123,7 @@ export const Inview = forwardRef<HTMLElement, SpringProps & { tag?: Tags }>(
       if (
         isMobileDisabled(
           springsConfig.disableOnMobile.inview || disableOnMobile,
+          width,
         )
       ) {
         return false;
@@ -170,7 +171,17 @@ export const Inview = forwardRef<HTMLElement, SpringProps & { tag?: Tags }>(
           immediate: immediateOut,
         });
       }
-    }, [active, api, to, from, config, delayIn, delayOut, immediateOut]);
+    }, [
+      active,
+      api,
+      to,
+      from,
+      config,
+      delayIn,
+      delayOut,
+      immediateOut,
+      disableOnMobile,
+    ]);
 
     if (innerTag) {
       return (
@@ -178,7 +189,7 @@ export const Inview = forwardRef<HTMLElement, SpringProps & { tag?: Tags }>(
           tag={Tag}
           ref={(node) => {
             innerRef.current = node as HTMLElement;
-            inViewRef.current = node as HTMLElement;
+            setInViewNode(node as HTMLElement | null);
           }}
           style={{ ...style }}
           {...props}
@@ -199,7 +210,7 @@ export const Inview = forwardRef<HTMLElement, SpringProps & { tag?: Tags }>(
         tag={Tag}
         ref={(node) => {
           innerRef.current = node as HTMLElement;
-          inViewRef.current = node as HTMLElement;
+          setInViewNode(node as HTMLElement | null);
         }}
         style={{ ...springs, ...style }}
         {...props}

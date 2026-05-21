@@ -36,7 +36,7 @@ See [[design-system]].
 | Package | Version | Role |
 |---------|---------|------|
 | `@react-spring/web` | `^10.0.3` | Spring physics — drives **all** motion |
-| `spring-text-engine` | `^0.1.3` | Scroll-aware spring text animation |
+| `spring-text-engine` | `^0.1.5` | Scroll-aware spring text animation |
 
 No `framer-motion`, no CSS transitions/keyframes. See [[animation-system]] and
 [[text-engine]]. ADR: [[decisions-log]] ADR-0002.

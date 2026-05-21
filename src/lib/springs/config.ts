@@ -30,12 +30,15 @@ export const springsConfig: SpringsConfig = {
   },
 } as const;
 
-export const isMobileDisabled = (value: boolean) => {
+/**
+ * @param value - whether the animation opts into mobile-disabling
+ * @param viewportWidth - optional explicit width (px); pass a React-tracked
+ *   value here so callers re-evaluate on resize. Falls back to `window.innerWidth`.
+ */
+export const isMobileDisabled = (value: boolean, viewportWidth?: number) => {
   if (typeof window === "undefined") return false;
-  if (value) {
-    if (window.innerWidth <= springsConfig.mobileWidth) {
-      return true;
-    }
-  }
-  return false;
+  if (!value) return false;
+  const width =
+    viewportWidth && viewportWidth > 0 ? viewportWidth : window.innerWidth;
+  return width <= springsConfig.mobileWidth;
 };

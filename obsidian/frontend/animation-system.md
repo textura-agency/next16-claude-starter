@@ -11,7 +11,26 @@ CSS transitions, CSS keyframes, and `framer-motion` are **banned**. ADR:
 
 > [!warning] #do-not-modify
 > `src/components/animation/springs/` and `src/hooks/animation/` are the animation
-> engine. Treat them as a vendored library — **consume them, never edit them**.
+> engine. Treat them as a vendored library — **consume them, don't edit them
+> without explicit sign-off**. One authorized performance refactor has been made;
+> see [[decisions-log]] ADR-0009.
+
+## Shared render loop (ticker)
+
+Every per-frame animation hook subscribes to **one** app-wide
+`requestAnimationFrame` loop — `src/lib/animation/ticker.ts` (`subscribeToTicker`).
+A page with N scroll-driven components runs **one** rAF, not N. The loop is
+reference-counted: it starts on the first subscriber and stops when the last one
+unmounts, so an idle page costs nothing.
+
+- `useLoop` (and everything built on it — `useLoopInView`, `useResizeLoop`,
+  `useSpringTrigger`, `useProgressTrigger`, `<AdaptiveGrid>`) goes through the
+  ticker. Each subscriber keeps its own `framerate` throttle.
+- Window dimensions (`useWindowWidth` / `useWindowHeight` / `useWindowSize`)
+  share **one** debounced `resize` listener via a `useSyncExternalStore` store.
+
+`src/lib/animation/ticker.ts` is **not** `#do-not-modify` — it is the supported
+extension point for loop-based animation.
 
 ## The components
 
@@ -86,9 +105,11 @@ export const springsConfig = {
 };
 ```
 
-`isMobileDisabled(value)` checks `window.innerWidth` against `mobileWidth`. Components
-opt in per-instance via `disableOnMobile`. **Never disable animation globally** —
-toggle per component when an animation hurts mobile UX.
+`isMobileDisabled(value, viewportWidth?)` checks the viewport against `mobileWidth`.
+Pass a React-tracked width (e.g. from `useWindowWidth()`) as the second argument so
+the check re-evaluates on resize; it falls back to `window.innerWidth` when omitted.
+Components opt in per-instance via `disableOnMobile`. **Never disable animation
+globally** — toggle per component when an animation hurts mobile UX.
 
 ## Underlying hooks
 

@@ -30,8 +30,10 @@ consistent with it.
 
 1. **No CSS transitions/keyframes, no `framer-motion`.** All motion uses
    `@react-spring/web` via the [[animation-system]]. Text uses [[text-engine]].
-2. **Do not modify** `src/components/animation/springs/` or `src/hooks/animation/`.
-   They are the vendored animation engine — `#do-not-modify`.
+2. **Do not modify** `src/components/animation/springs/` or `src/hooks/animation/`
+   without explicit sign-off. They are the vendored animation engine —
+   `#do-not-modify`. One authorized performance refactor has been made; see
+   [[decisions-log]] ADR-0009. They stay protected by default.
 3. **Never `mode="manual"`** on `TextEngine` — use `always`/`once`/`forward`/`progress`.
 4. **No hardcoded values** — design tokens for styles (see [[design-system]]),
    props/hooks for content (see [[component-conventions]]).

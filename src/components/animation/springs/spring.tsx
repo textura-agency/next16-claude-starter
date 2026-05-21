@@ -122,7 +122,7 @@ export const Spring = forwardRef<HTMLElement, SpringProps & { tag?: Tags }>(
             }
           }
         };
-        window.addEventListener("scroll", handleScroll);
+        window.addEventListener("scroll", handleScroll, { passive: true });
         return () => window.removeEventListener("scroll", handleScroll);
       }
     }, [mode, disableOnMobile, width]);
@@ -131,6 +131,7 @@ export const Spring = forwardRef<HTMLElement, SpringProps & { tag?: Tags }>(
       if (
         isMobileDisabled(
           springsConfig.disableOnMobile.spring || disableOnMobile,
+          width,
         )
       ) {
         return false;
@@ -176,7 +177,17 @@ export const Spring = forwardRef<HTMLElement, SpringProps & { tag?: Tags }>(
           immediate: immediateOut,
         });
       }
-    }, [active, api, to, from, config, delayIn, delayOut, immediateOut]);
+    }, [
+      active,
+      api,
+      to,
+      from,
+      config,
+      delayIn,
+      delayOut,
+      immediateOut,
+      disableOnMobile,
+    ]);
 
     return (
       <AnimatedVarTextTag

@@ -24,8 +24,10 @@ Notes link each other with `[[wikilinks]]` — follow them to navigate.
 1. **All motion is spring-based** — `@react-spring/web` via the components in
    `src/components/animation/springs/`. Text animation uses `spring-text-engine`.
    No CSS transitions, no CSS keyframes, no `framer-motion`.
-2. **Do not modify** `src/components/animation/springs/` or `src/hooks/animation/` —
-   they are the vendored animation engine.
+2. **Do not modify** `src/components/animation/springs/` or `src/hooks/animation/`
+   without explicit sign-off — they are the vendored animation engine. One
+   authorized performance refactor has been made (see `decisions-log.md`
+   ADR-0009); they remain protected by default.
 3. **Never `mode="manual"`** on `TextEngine` — use `always` / `once` / `forward` /
    `progress`.
 4. **No hardcoded values** — design tokens in `globals.css` for styles; props/hooks

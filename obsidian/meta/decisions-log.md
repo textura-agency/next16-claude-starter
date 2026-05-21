@@ -10,6 +10,85 @@ consequences. Use [[templates/adr-note]] for new entries. Newest first.
 
 ---
 
+## ADR-0009 — Shared animation ticker; authorized engine performance refactor
+
+- **Status:** Accepted
+- **Date:** 2026-05-21
+
+**Context.** A performance review of the animation engine found load issues that
+scale with the number of animated components on a page:
+- `useLoop` started a **private `requestAnimationFrame` loop per hook instance** —
+  N scroll-driven components meant N rAF loops, none of which ever stopped.
+- `useWindowWidth` attached a **separate debounced `resize` listener per call** —
+  one per spring component.
+- `useDynamicInView` re-created its `IntersectionObserver` **on every render**
+  (effect keyed on an unstable `options` object), and a dead `Proxy` branch
+  created observers that were never disconnected.
+- `useLoop`'s mount-only effect captured a **stale `onRender`**, so prop changes
+  after mount were ignored.
+All of this lives under `src/hooks/animation/` and `src/components/animation/springs/`
+— `#do-not-modify` (ADR-0002).
+
+**Decision.** With explicit user sign-off, apply a one-time performance refactor
+to the protected engine, and introduce a shared, unprotected loop primitive:
+- New `src/lib/animation/ticker.ts` — a single app-wide, reference-counted rAF
+  loop (`subscribeToTicker`). It starts on the first subscriber, stops on the
+  last, and throttles each subscriber independently. **Not** `#do-not-modify` —
+  it is the supported extension point.
+- `useLoop` now subscribes to the ticker and reads `onRender` / `framerate`
+  through refs (fixes the stale-closure bug). Public signature unchanged.
+- `useDynamicInView` rewritten without the `Proxy`: one observer, re-created only
+  when the observed element or options actually change; exposes a callback ref.
+- `use-window-size.ts` (not protected) now serves all three hooks from one
+  debounced `resize` listener via `useSyncExternalStore`. The unused
+  `debounceDelay` parameter was dropped.
+- `mode="forward"` `scroll` listeners in `<Spring>` / `<Inview>` made `passive`.
+- Hard rule #2 amended: the engine stays protected by default; changes require
+  explicit sign-off.
+
+**Consequences.** A page with N animated components now runs **one** rAF loop and
+**one** resize listener instead of N of each, with no observer churn. Public
+hook/component APIs are unchanged except `useWindowWidth`/`Height`/`Size`, which
+no longer take a `debounceDelay` argument (no caller passed one). This **amends
+ADR-0002's** do-not-modify scope.
+
+A follow-up pass then cleared all 13 pre-existing ESLint problems in the engine
+(also authorized): `isMobileDisabled` gained an optional `viewportWidth`
+argument, missing `disableOnMobile` effect deps were added, a
+`trigger.current`-in-cleanup hazard in `<Hover>` was fixed, `<Handle>`'s
+transition effects were ref-stabilised, and `useProgressTrigger` now returns
+`progress` as a `RefObject<number>` (no consumer affected).
+
+---
+
+## ADR-0008 — Adaptive scaling grid via root font-size
+
+- **Status:** Accepted
+- **Date:** 2026-05-21
+
+**Context.** An adaptive scaling system was dropped into `src/components/common/`
+to keep a rem-based design proportional across viewports. It shipped as a
+`styled-components` implementation (`createGlobalStyle`, a `css` `media` helper,
+`rm`/`em` helpers, plus `colors.ts` / `fonts.ts` / `utils.ts`). `styled-components`
+is not a project dependency, and global CSS belongs in `globals.css` per ADR-0004.
+
+**Decision.** Keep only the scaling behaviour; rebuild it to the project stack.
+- **Scale down** (viewport ≤ largest breakpoint) — `vw`-based `html { font-size }`
+  media queries in `globals.css`, inside `@layer base`.
+- **Scale up** (viewport > largest breakpoint) — a `<AdaptiveGrid>` client
+  component (`useAdaptiveGrid` hook) sets an inline `html` font-size at runtime,
+  reusing the existing `useResizeLoop` render loop.
+- Breakpoints live in `grid.config.ts` as typed config; the `globals.css` media
+  queries mirror them and must be kept in sync (formula in both files).
+- The dropped `styled-components` files were deleted, not committed.
+
+**Consequences.** A rem-based layout now scales as one unit on every viewport.
+`styled-components` stays out of the dependency tree. The breakpoint set is
+duplicated across `grid.config.ts` and `globals.css` by design — the CSS-only
+config rule (ADR-0004) forbids generating the media queries from JS.
+
+---
+
 ## ADR-0007 — Automate the vault workflow with Claude Code hooks
 
 - **Status:** Accepted

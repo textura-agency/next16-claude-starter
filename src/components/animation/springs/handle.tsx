@@ -63,11 +63,21 @@ export const Handle = memo(
       config,
     }));
 
+    // Keep the latest animation inputs reachable from the trigger-style effects
+    // below, so their dependency arrays can stay narrow — listing `from`/`to`/
+    // `config`/`delayIn`/`delayOut` would re-fire the transition on every render.
+    const dataRef = useRef({ from, to, config, delayIn, delayOut });
+    const cachedChildrenRef = useRef<React.ReactNode>(cachedChildren);
+    useEffect(() => {
+      dataRef.current = { from, to, config, delayIn, delayOut };
+      cachedChildrenRef.current = cachedChildren;
+    });
+
     useEffect(() => {
       if (!enabled) {
         api.start({
-          ...from,
-          config,
+          ...dataRef.current.from,
+          config: dataRef.current.config,
           onRest: () => {
             setCachedChildren(childrenRef.current);
             isHidden.current = true;
@@ -75,12 +85,12 @@ export const Handle = memo(
           },
         });
       }
-    }, [enabled]);
+    }, [enabled, api]);
 
     useEffect(() => {
       if (!enabled) return;
       // Don't animate if children haven't changed
-      if (children === cachedChildren && !isHidden.current) return;
+      if (children === cachedChildrenRef.current && !isHidden.current) return;
 
       // Clear any pending animations
       if (isHidden.current) {
@@ -94,9 +104,9 @@ export const Handle = memo(
       // Start fade out animation
       isHidden.current = false;
       api.start({
-        ...from,
-        delay: delayOut,
-        config,
+        ...dataRef.current.from,
+        delay: dataRef.current.delayOut,
+        config: dataRef.current.config,
         onRest: () => animateIn(),
       });
 
@@ -107,13 +117,13 @@ export const Handle = memo(
         animationTimeoutRef.current = setTimeout(() => {
           isHidden.current = false;
           api.start({
-            ...to,
-            config,
+            ...dataRef.current.to,
+            config: dataRef.current.config,
             onRest: () => setRerender((state) => state + 1),
           });
-        }, delayIn);
+        }, dataRef.current.delayIn);
       }
-    }, [children, enabled, rerender]);
+    }, [children, enabled, rerender, api]);
 
     // Cleanup timeouts
     useEffect(() => {

@@ -21,7 +21,7 @@
  * @param {RefObject<HTMLElement>} props.elementRef - Target element ref
  *
  * @returns {Object} Progress values
- * @returns {number} .progress - Raw progress value (0-1)
+ * @returns {RefObject<number>} .progress - Ref holding the raw 0-1 progress; read `.current`
  * @returns {SpringValue} .interpolatedProgress - Spring-animated progress
  */
 
@@ -71,6 +71,7 @@ export function useProgressTrigger({
     if (
       isMobileDisabled(
         springsConfig.disableOnMobile.springtrigger || disableOnMobile,
+        width,
       )
     ) {
       return false;
@@ -131,6 +132,8 @@ export function useProgressTrigger({
 
   return {
     interpolatedProgress,
-    progress: savedProgress.current,
+    // The ref itself — not `.current` — so reading it isn't a render-time ref
+    // access. Consumers read `progress.current` for the live 0-1 value.
+    progress: savedProgress,
   };
 }

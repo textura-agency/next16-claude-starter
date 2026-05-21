@@ -46,7 +46,7 @@ src/
 │
 ├── components/
 │   ├── ui/                 # Design-system primitives (Button, Input…) — empty, add as needed
-│   ├── common/             # Shared infrastructure (Cookie, Skeletons)
+│   ├── common/             # Shared infrastructure (Cookie, grid, Skeletons)
 │   └── animation/springs/  # ⚠️ Animation engine — #do-not-modify
 │
 ├── hooks/                  # Custom hooks, grouped by domain
@@ -55,6 +55,7 @@ src/
 │   └── use-window-size.ts
 │
 ├── lib/                    # Third-party client init / global config
+│   ├── animation/ticker.ts # Shared app-wide requestAnimationFrame loop
 │   └── springs/config.ts   # Global animation config
 │
 ├── utils/                  # Pure utility functions (no side effects)

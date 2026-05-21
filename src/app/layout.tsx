@@ -4,6 +4,7 @@ import { Onest } from "next/font/google";
 import { generateMetadata } from "@/utils/seo/generate-page-metadata";
 
 import { LazyCookie } from "@/components/common/Cookie";
+import { AdaptiveGrid } from "@/components/common/grid";
 import { ScrollLayout } from "@/layouts/scroll-layout";
 
 import "@/app/globals.css";
@@ -27,6 +28,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${onest.variable}`}>
         <ScrollLayout>
+          <AdaptiveGrid />
           <LazyCookie />
           {children}
         </ScrollLayout>
