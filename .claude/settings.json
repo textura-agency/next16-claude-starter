@@ -1,0 +1,36 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"PROJECT GUIDE — next16-claude-starter. All project documentation lives in the obsidian/ vault, which is the single source of truth. Before doing project work this session, read obsidian/README.md (the Map of Content) and obsidian/workflows/ai-agent-guide.md (the hard rules), then open the topic note relevant to the task before writing code.\"}}'",
+            "statusMessage": "Loading project guide"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"VAULT REMINDER: consult the relevant obsidian/ guide before acting on this request — e.g. obsidian/frontend/animation-system.md for animation work, obsidian/workflows/new-page.md to build a page, obsidian/frontend/component-conventions.md for components. If your work changes code, behaviour, dependencies, or architecture, update the matching vault docs in the SAME turn: catalog notes under obsidian/frontend/, obsidian/meta/changelog.md, and obsidian/meta/decisions-log.md.\"}}'"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "M=\"${TMPDIR:-/tmp}/claude-vault-stop-$(jq -r .session_id 2>/dev/null)\"; if [ -f \"$M\" ]; then rm -f \"$M\"; exit 0; fi; touch \"$M\"; echo '{\"decision\":\"block\",\"reason\":\"Before finishing this turn: if you changed code, behaviour, dependencies, or architecture, update the matching obsidian/ vault docs now — catalog notes under obsidian/frontend/ for components, hooks and utils; obsidian/meta/changelog.md for notable changes; obsidian/meta/decisions-log.md for new architectural decisions. If the vault already reflects everything done this turn, stop.\"}'",
+            "statusMessage": "Checking vault docs are in sync"
+          }
+        ]
+      }
+    ]
+  }
+}
