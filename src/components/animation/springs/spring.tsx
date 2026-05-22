@@ -131,7 +131,6 @@ export const Spring = forwardRef<HTMLElement, SpringProps & { tag?: Tags }>(
       if (
         isMobileDisabled(
           springsConfig.disableOnMobile.spring || disableOnMobile,
-          width,
         )
       ) {
         return false;
@@ -153,41 +152,18 @@ export const Spring = forwardRef<HTMLElement, SpringProps & { tag?: Tags }>(
       return true;
     }, [mode, enabled, disableOnMobile, width]);
 
-    const [springs, api] = useSpring(() => ({
-      ...from,
-      config,
-    }));
-
-    useEffect(() => {
-      if (
-        isMobileDisabled(
-          springsConfig.disableOnMobile.spring || disableOnMobile,
-        )
-      ) {
-        return;
-      }
-
-      if (active) {
-        api.start({ ...to, config, delay: delayIn });
-      } else {
-        api.start({
-          ...from,
-          config,
-          delay: delayOut,
-          immediate: immediateOut,
-        });
-      }
-    }, [
-      active,
-      api,
-      to,
+    // Declarative spring: `useSpring` diffs values each render, so animating to
+    // `to` (when active) vs `from` happens automatically, and a parent
+    // re-render with the same target is a no-op — no re-animation, no reset.
+    // The imperative `useSpring(fn).api.start` form did not reliably drive the
+    // values in this project's react-spring build (the start call was a no-op).
+    const springs = useSpring({
       from,
+      to: active ? to : from,
       config,
-      delayIn,
-      delayOut,
-      immediateOut,
-      disableOnMobile,
-    ]);
+      delay: active ? delayIn : delayOut,
+      immediate: !active && immediateOut,
+    });
 
     return (
       <AnimatedVarTextTag

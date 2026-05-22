@@ -105,7 +105,6 @@ export const Hover = forwardRef<HTMLElement, SpringProps & { tag?: Tags }>(
       if (
         isMobileDisabled(
           springsConfig.disableOnMobile.hover || disableOnMobile,
-          width,
         )
       ) {
         return;
@@ -160,7 +159,6 @@ export const Hover = forwardRef<HTMLElement, SpringProps & { tag?: Tags }>(
       if (
         isMobileDisabled(
           springsConfig.disableOnMobile.hover || disableOnMobile,
-          width,
         )
       ) {
         return false;
@@ -172,38 +170,17 @@ export const Hover = forwardRef<HTMLElement, SpringProps & { tag?: Tags }>(
       return hovered;
     }, [enabled, hovered, disableOnMobile, width]);
 
-    const [springs, api] = useSpring(() => ({
-      ...from,
-      config,
-    }));
-
-    useEffect(() => {
-      if (
-        isMobileDisabled(springsConfig.disableOnMobile.hover || disableOnMobile)
-      ) {
-        return;
-      }
-      if (active) {
-        api.start({ ...to, config, delay: delayIn });
-      } else {
-        api.start({
-          ...from,
-          config,
-          delay: delayOut,
-          immediate: immediateOut,
-        });
-      }
-    }, [
-      active,
-      api,
-      to,
+    // Declarative spring — `useSpring` diffs values each render, so it
+    // reliably animates to `to` while hovered and back to `from` otherwise.
+    // The imperative `useSpring(fn).api.start` form did not move the values in
+    // this project's react-spring build.
+    const springs = useSpring({
       from,
+      to: active ? to : from,
       config,
-      delayIn,
-      delayOut,
-      immediateOut,
-      disableOnMobile,
-    ]);
+      delay: active ? delayIn : delayOut,
+      immediate: !active && immediateOut,
+    });
 
     return (
       <AnimatedVarTextTag

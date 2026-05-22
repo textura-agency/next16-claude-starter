@@ -86,7 +86,7 @@ export const Inview = forwardRef<HTMLElement, SpringProps & { tag?: Tags }>(
     ref,
   ) => {
     const innerRef = useRef<HTMLElement>(null);
-    const [setInViewNode, inView] = useDynamicInView({
+    const [inViewRef, inView] = useDynamicInView({
       trigger: trigger,
     });
     const isAnimated = useRef(false);
@@ -123,7 +123,6 @@ export const Inview = forwardRef<HTMLElement, SpringProps & { tag?: Tags }>(
       if (
         isMobileDisabled(
           springsConfig.disableOnMobile.inview || disableOnMobile,
-          width,
         )
       ) {
         return false;
@@ -148,40 +147,16 @@ export const Inview = forwardRef<HTMLElement, SpringProps & { tag?: Tags }>(
       return inView;
     }, [inView, mode, enabled, disableOnMobile, width]);
 
-    const [springs, api] = useSpring(() => ({
-      ...from,
-      config,
-    }));
-
-    useEffect(() => {
-      if (
-        isMobileDisabled(
-          springsConfig.disableOnMobile.inview || disableOnMobile,
-        )
-      ) {
-        return;
-      }
-      if (active) {
-        api.start({ ...to, config, delay: delayIn });
-      } else {
-        api.start({
-          ...from,
-          config,
-          delay: delayOut,
-          immediate: immediateOut,
-        });
-      }
-    }, [
-      active,
-      api,
-      to,
+    // Declarative spring — `useSpring` diffs values each render. The imperative
+    // `useSpring(fn).api.start` form did not move the values in this project's
+    // react-spring build.
+    const springs = useSpring({
       from,
+      to: active ? to : from,
       config,
-      delayIn,
-      delayOut,
-      immediateOut,
-      disableOnMobile,
-    ]);
+      delay: active ? delayIn : delayOut,
+      immediate: !active && immediateOut,
+    });
 
     if (innerTag) {
       return (
@@ -189,7 +164,7 @@ export const Inview = forwardRef<HTMLElement, SpringProps & { tag?: Tags }>(
           tag={Tag}
           ref={(node) => {
             innerRef.current = node as HTMLElement;
-            setInViewNode(node as HTMLElement | null);
+            inViewRef.current = node as HTMLElement;
           }}
           style={{ ...style }}
           {...props}
@@ -210,7 +185,7 @@ export const Inview = forwardRef<HTMLElement, SpringProps & { tag?: Tags }>(
         tag={Tag}
         ref={(node) => {
           innerRef.current = node as HTMLElement;
-          setInViewNode(node as HTMLElement | null);
+          inViewRef.current = node as HTMLElement;
         }}
         style={{ ...springs, ...style }}
         {...props}
