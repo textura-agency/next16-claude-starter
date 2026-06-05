@@ -47,8 +47,7 @@ src/
 │   └── favicon.ico
 │
 ├── views/                  # Page-level components — one per route
-│   ├── home.tsx            # HomeView (Server Component, demo)
-│   └── home-showcase.tsx   # HomeShowcase — client animation leaf
+│   └── home.tsx            # HomeView (Server Component, empty — start here)
 │
 ├── layouts/                # Reusable layout wrappers
 │   └── scroll-layout.tsx   # Lenis smooth-scroll wrapper

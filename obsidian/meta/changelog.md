@@ -1,12 +1,20 @@
 ---
 tags: [meta, changelog]
-updated: 2026-05-23
+updated: 2026-06-05
 ---
 
 # Changelog
 
 Chronological log of notable changes to the project. Newest first.
 This is a human-curated log — not a mirror of `git log`.
+
+## 2026-06-05
+
+- **Home view emptied** — removed the animation showcase (`src/views/home-showcase.tsx`
+  deleted) and reduced `HomeView` to an empty `<main>`. The home view is now the
+  blank starting point for new work. Documented the convention — *if the project
+  is empty and no other instructions are provided, start developing in the home
+  view on route `/`* — in [[ai-agent-guide]] and [[new-page]].
 
 ## 2026-05-23
 

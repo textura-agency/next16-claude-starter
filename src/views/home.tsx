@@ -1,13 +1,10 @@
-import { HomeShowcase } from "@/views/home-showcase";
-
 /**
- * Home view — a Server Component. The page shell renders on the server; the
- * animation showcase is isolated in the `HomeShowcase` client leaf.
+ * Home view — a Server Component, intentionally empty.
+ *
+ * This is the starting point for new work: if the project is empty and no other
+ * instructions are provided, begin developing here (route `/`). Build sections
+ * as client leaves so this view stays a Server Component (hard rule #6).
  */
 export const HomeView = () => {
-  return (
-    <main className="z-1 w-screen min-h-[200lvh] flex flex-col items-center justify-center gap-50 bg-white text-black">
-      <HomeShowcase />
-    </main>
-  );
+  return <main className="min-h-lvh" />;
 };

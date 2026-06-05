@@ -9,6 +9,11 @@ The repeatable playbook for building a page or section. The canonical fill-in
 prompt template is [[generic-layout-prompt]] — copy it, fill the `[PLACEHOLDERS]`,
 and hand it to an AI agent or follow it manually.
 
+> [!tip] Empty project? Start at the home view.
+> The home view (`src/views/home.tsx`, route `/`) ships **empty**. If the project
+> is empty and no other instructions are provided, **start developing in the home
+> view on route `/`** rather than scaffolding a new route.
+
 ## Steps
 
 1. **Get the design.** Collect the desktop + mobile Figma frames. Use the Figma

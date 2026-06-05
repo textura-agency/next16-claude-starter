@@ -26,8 +26,10 @@ export default function Home() {
 ```
 
 All layout and UI logic lives in `src/views/home.tsx` (`HomeView`). The view is
-a **Server Component**; client-only animation is isolated in a leaf
-(`views/home-showcase.tsx`) — see [[component-conventions]] hard rule #6.
+a **Server Component**; isolate any client-only animation in a leaf component —
+see [[component-conventions]] hard rule #6. `HomeView` currently ships **empty**:
+if the project is empty and no other instructions are provided, start developing
+here on route `/` (see [[ai-agent-guide]] / [[new-page]]).
 
 ## Current routes
 

@@ -14,6 +14,11 @@ Rules of engagement for AI agents (Claude Code, Cursor) working in this repo.
 > conventions, and file structure may differ from training data. **Read the
 > relevant spec before writing code. Heed deprecation notices.**
 
+> [!tip] Where to start
+> The home view (`src/views/home.tsx`, route `/`) ships **empty**. If the project
+> is empty and no other instructions are provided, **start developing in the home
+> view on route `/`**. Follow [[new-page]] to build it out.
+
 ## Source-of-truth hierarchy
 
 | Layer | Files | Purpose |
