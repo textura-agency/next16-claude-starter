@@ -10,6 +10,46 @@ consequences. Use [[templates/adr-note]] for new entries. Newest first.
 
 ---
 
+## ADR-0013 — `<Inview>` self-observe fix; spring components honour resize
+
+- **Status:** Accepted
+- **Date:** 2026-06-07
+
+**Context.** `<Inview>` only animated when an external `trigger` ref was passed.
+Without one it never revealed. Root cause: `useDynamicInView` returns its target
+attachment as a **callback ref** (`setNode`) in the first tuple slot, but
+`in-view.tsx` destructured it as `inViewRef` and wrote `inViewRef.current = node`
+in the JSX `ref` callback — assigning `.current` to a function instead of calling
+it. `setNode` never ran, the observed `node` stayed `null`, and with no `trigger`
+the observer had nothing to watch (`trigger?.current ?? node` → `null`). With a
+`trigger` it worked only because `trigger.current` bypassed the dead `node` path.
+TypeScript flagged this at build time (`Property 'current' does not exist on type
+'TargetRefCallback'`), so the build was already failing.
+
+Separately, `<Inview>`, `<Spring>`, and `<Hover>` tracked `width`
+(`useWindowWidth()`) as a `useMemo`/`useEffect` dependency to re-evaluate mobile
+gating on resize, but never passed it to `isMobileDisabled()` — so the value was
+genuinely unused (ESLint `react-hooks/exhaustive-deps` warning) **and** resize
+re-evaluation silently did nothing; the check always read `window.innerWidth` at
+call time.
+
+**Decision.** This is the second authorized edit to the `#do-not-modify` engine
+(after ADR-0009). Two corrections:
+1. In `in-view.tsx`, call the callback ref — `setInViewNode(node)` — instead of
+   assigning `.current`, so the component observes itself when no `trigger` is
+   given.
+2. Pass the React-tracked `width` into every `isMobileDisabled(value, width)`
+   call across `in-view.tsx`, `spring.tsx`, and `hover.tsx`. This is the
+   documented second parameter of `isMobileDisabled` and makes the `width`
+   dependency meaningful, fixing resize re-evaluation and clearing the lint
+   warnings.
+
+**Consequences.** `<Inview>` now works standalone (the common case). `yarn build`
+and `yarn lint` are both clean (0 errors, 0 warnings). The springs folder remains
+`#do-not-modify` by default — these were explicitly signed-off bug fixes.
+
+---
+
 ## ADR-0012 — Styling lives in utilities and components, not `globals.css`
 
 - **Status:** Accepted

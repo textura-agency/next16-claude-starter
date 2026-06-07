@@ -86,7 +86,7 @@ export const Inview = forwardRef<HTMLElement, SpringProps & { tag?: Tags }>(
     ref,
   ) => {
     const innerRef = useRef<HTMLElement>(null);
-    const [inViewRef, inView] = useDynamicInView({
+    const [setInViewNode, inView] = useDynamicInView({
       trigger: trigger,
     });
     const isAnimated = useRef(false);
@@ -99,6 +99,7 @@ export const Inview = forwardRef<HTMLElement, SpringProps & { tag?: Tags }>(
       if (
         isMobileDisabled(
           springsConfig.disableOnMobile.inview || disableOnMobile,
+          width,
         )
       ) {
         return;
@@ -123,6 +124,7 @@ export const Inview = forwardRef<HTMLElement, SpringProps & { tag?: Tags }>(
       if (
         isMobileDisabled(
           springsConfig.disableOnMobile.inview || disableOnMobile,
+          width,
         )
       ) {
         return false;
@@ -164,7 +166,7 @@ export const Inview = forwardRef<HTMLElement, SpringProps & { tag?: Tags }>(
           tag={Tag}
           ref={(node) => {
             innerRef.current = node as HTMLElement;
-            inViewRef.current = node as HTMLElement;
+            setInViewNode(node);
           }}
           style={{ ...style }}
           {...props}
@@ -185,7 +187,7 @@ export const Inview = forwardRef<HTMLElement, SpringProps & { tag?: Tags }>(
         tag={Tag}
         ref={(node) => {
           innerRef.current = node as HTMLElement;
-          inViewRef.current = node as HTMLElement;
+          setInViewNode(node);
         }}
         style={{ ...springs, ...style }}
         {...props}

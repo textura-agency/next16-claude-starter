@@ -18,7 +18,8 @@ Springs `from` → `to` when the element enters the viewport (IntersectionObserv
 - `mode`: `"once"` (play once, stay) · `"always"` (reverse on leave) · `"forward"`
   (only on downward scroll).
 - `delayIn` / `delayOut`, `immediateOut`, `disableOnMobile`.
-- `trigger` — optional external element to observe.
+- `trigger` — optional external element to observe. Omit it and the component
+  observes its own rendered element (the common case).
 - `innerTag` / `innerClassName` — the inner animated wrapper.
 
 ## `<Spring>` — `spring.tsx`

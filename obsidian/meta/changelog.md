@@ -1,12 +1,25 @@
 ---
 tags: [meta, changelog]
-updated: 2026-06-05
+updated: 2026-06-07
 ---
 
 # Changelog
 
 Chronological log of notable changes to the project. Newest first.
 This is a human-curated log — not a mirror of `git log`.
+
+## 2026-06-07
+
+- **Fixed `<Inview>` standalone reveal + spring resize gating** — `<Inview>`
+  never animated unless an external `trigger` ref was passed. The JSX `ref`
+  callback wrote `inViewRef.current = node`, but that tuple slot is a *callback
+  ref* (`setNode`), so the element was never observed and the `node` stayed
+  `null`. Now calls `setInViewNode(node)`. This was also a build-breaking type
+  error. Additionally, `<Inview>`, `<Spring>`, and `<Hover>` tracked `width` as a
+  hook dependency but never passed it to `isMobileDisabled` — fixed by passing the
+  tracked `width`, restoring resize re-evaluation and clearing the
+  `react-hooks/exhaustive-deps` warnings. `yarn build` and `yarn lint` are now
+  clean. See [[decisions-log]] ADR-0013 and [[components/animation-springs]].
 
 ## 2026-06-05
 
