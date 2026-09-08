@@ -130,16 +130,37 @@ Two details:
   free win: state it. If the route must stay static, do the branch in
   middleware (rewrite bots to a `/poster` route) instead.
 
-## 2. Tier the device once, at construction
+## 2. Tier the device at construction — and re-read it on a real change
 
 One module decides what "mobile" means. Everything — DPR, particle counts,
 bloom, frame budget, whether the pointer is even listened to — reads from it, so
-the values can never drift apart. Read once at construction: a device does not
-change tier mid-session, and rebuilding buffers on resize costs more than the
-mismatch is worth.
+the values can never drift apart. Read it at construction and hold it in a
+mutable slot: never recompute it per frame, and never rebuild buffers on every
+`resize` event — that costs more than the mismatch is worth.
 
 `mobile` = `innerWidth < 768 || matchMedia("(hover: none) and (pointer: coarse)")`.
 The coarse-pointer clause is what catches tablets and large phones.
+
+**"Once" does not mean "never again".** The tier does change mid-session in two
+real cases: a window dragged across a breakpoint, and DevTools device emulation
+switched on or off (which also flips the pointer media query). An earlier
+version of this skill read the tier into a `const` and attached no resize path
+on touch; the result was a scene that, once loaded as a phone, kept the
+390-wide buffer, the 30 fps budget, the parked pointer and the hidden
+desktop-only passes on a 2160-wide viewport and drew skewed until reload. So:
+
+- Re-read the tier from the resize path (§13) when the **width** changes or
+  the pointer media query flips. Height-only changes on a coarse pointer are
+  the iOS URL bar and are ignored.
+- When it changes, `retune(tier)`: re-apply DPR (renderer **and** composer, §6),
+  the frame budget, per-tier visibility flags, bind or unbind the pointer
+  listener (§11), and un-freeze if the new tier no longer qualifies for
+  `sceneShouldFreeze()` — or freeze if it now does.
+- Retune touches **uniforms, sizes, visibility and listeners only** — never a
+  define, a light count or `material.transparent` (§3.2), so no program is
+  compiled. Particle buffers are not rebuilt either: allocate the largest tier's
+  buffer at construction and vary the count with `geometry.setDrawRange`
+  (§7), so retune is one integer write.
 
 Also expose, from the same module:
 - `prefersReducedMotion()` — an accessibility promise, honoured on every tier.
@@ -384,6 +405,9 @@ either dead weight or actively wrong:
   the ease-in.
 - Drop the uniform and the branch from the mobile shader variant where it is
   more than a couple of ops — but set it at construction (§3.2), never toggle.
+- Bind and unbind the listener from `retune()` (§2), not from a one-shot check
+  at construction. Otherwise leaving device emulation, or plugging a mouse into
+  a tablet, leaves the pointer parked at NDC (0,0) forever.
 - If the user does want it on touch: drive it from `touchmove`, and keep the
   same lerp so it doesn't snap.
 
@@ -408,11 +432,18 @@ either dead weight or actively wrong:
 
 ## 13. The details that cause "flicker on iOS"
 
-- **No `resize` listener on touch.** iOS Safari fires `resize` every time the URL
-  bar collapses during scroll; handling it rebuilds the WebGL framebuffer
-  mid-scroll and reads as a whole-scene flash. Size the canvas once on load and
-  accept that rotation won't reflow it. Desktop keeps an rAF-coalesced resize.
-  (`mycelia/src/lib/scene/canvas3d.ts`.)
+- **Resize on every tier — but ignore the URL bar.** iOS Safari fires `resize`
+  every time the URL bar collapses during scroll; handling it rebuilds the WebGL
+  framebuffer mid-scroll and reads as a whole-scene flash. The old answer — no
+  listener at all on touch (`mycelia/src/lib/scene/canvas3d.ts` still does
+  this; do **not** port that part) — over-corrects: a viewport that genuinely
+  changes (breakpoint drag, rotation, DevTools emulation toggled off) then keeps
+  the phone buffer and the scene renders skewed. Keep the rAF-coalesced
+  listener on every tier and, when the pointer is coarse, **skip height-only
+  changes**: the URL bar moves `innerHeight` alone, while a rotation or
+  breakpoint change moves `innerWidth`. A width change, or a flip of the
+  `(hover: none) and (pointer: coarse)` media query, re-reads the tier and runs
+  `retune()` (§2). `patterns.md` §5 is the reference implementation.
 - Size the **canvas** against the largest viewport — `h-lvh w-lvw`, not `100vh`
   — so a collapsing URL bar never re-allocates the framebuffer. **`lvh` is for
   the canvas, not the layout.** Applying it to the content is a different bug
@@ -448,6 +479,12 @@ Re-measure the §0 numbers and report the delta honestly:
   three.js in the JS bundle at all.
 - Look at it on a real phone. Fill-rate wins are invisible in a profiler and
   obvious in the hand.
+- **Tier switch round-trip.** Load with DevTools phone emulation on, then switch
+  it off: the drawing buffer must jump to the desktop size, draw calls to the
+  desktop count, the pointer effect must come back, and `programs.length` must
+  **not** grow (a new program here means retune toggled a define). Switch it
+  back on and the phone numbers must return. Then scroll on a real iPhone and
+  confirm the URL-bar collapse causes no re-size and no flash.
 
 Then, in the same turn, update the project's Obsidian vault (in this repo:
 `obsidian/meta/…` — check the casing in the vault you are actually in):

@@ -1,6 +1,6 @@
 ---
 tags: [meta, changelog]
-updated: 2026-08-18
+updated: 2026-09-08
 ---
 
 # Changelog
@@ -36,3 +36,20 @@ The home view (`src/views/home.tsx`, route `/`) ships empty on purpose — start
 there ([[new-page]]).
 
 <!-- Log this project's changes below, newest first, under a `## YYYY-MM-DD` heading. -->
+
+## 2026-09-08
+
+**`optimize-3d-scene` skill — resize no longer switched off on touch.** §13 of
+the skill (and `patterns.md` §5 / §14) told agents to attach *no* `resize`
+listener on the mobile tier, to dodge the iOS URL bar. That also removed the
+only path that could react to a breakpoint drag, a rotation or DevTools
+emulation being turned off, so a scene loaded as a phone kept its phone
+framebuffer, frame budget, parked pointer and hidden desktop passes on a desktop
+viewport and rendered skewed. The skill now listens on every tier, ignores
+height-only changes on a coarse pointer, and re-reads the tier on a width
+change or a pointer-media-query flip, with a `retune()` that re-applies DPR,
+budget, visibility, draw range and pointer binding without compiling a program.
+§2 and §11 of `SKILL.md` and the [[optimize-3d-scene]] workflow note were
+updated to match; §14 gained a tier-switch round-trip check. Reasoning in
+[[decisions-log]] ADR-0023. Measured on the project that surfaced it: phone
+390×844 / 3 draws ↔ desktop 2160×1350 / 4 draws, program count unchanged.

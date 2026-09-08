@@ -1,6 +1,6 @@
 ---
 tags: [workflow, skill, performance, 3d, stable]
-updated: 2026-07-24
+updated: 2026-09-08
 ---
 
 # Workflow — Optimise a 3D Scene (skill)
@@ -48,7 +48,7 @@ text in `.claude/skills/optimize-3d-scene/SKILL.md`; reference code in
 |---|------|-----------|
 | 0 | Audit first, on a valid footing | Baseline `renderer.info.render` / `.programs` / `.memory` — or, on a **raw WebGL** scene, the `getContext` hook you install first. Plus the environment rules: production build, fresh server, `waitUntil: "load"`, counted quantities only. |
 | 1 | Never ship the scene to a bot | Crawlers get a static poster, and the `three` chunk is never fetched or evaluated. The poster is for screenshots and the no-WebGL fallback — *not* layout stability. |
-| 2 | Tier the device once | One module owns what "mobile" means; DPR, counts, bloom and frame budget all read from it. |
+| 2 | Tier the device at construction, re-read on a real change | One module owns what "mobile" means; DPR, counts, bloom and frame budget all read from it. Held in a mutable slot; a width change or a pointer-media-query flip re-reads it and `retune()` re-applies every tier-derived value without compiling a program ([[decisions-log]] ADR-0023). |
 | 3 | Prewarm **everything** in the loader | Compile, link, upload, allocate *and decode* before handoff — the rule that kills micro-freezes. Also where §1's code-split fights §3, and where the preload-credentials trap bites. |
 | 4 | Render only when visible | Gate on `document.hidden` + in-view + canvas actually visible. Biggest saving on a scroll site. |
 | 5 | Frame budget per tier | 30 fps mobile / 45 tablet / uncapped desktop — measuring ~26 fps, because of how the ticker throttles. |
@@ -59,7 +59,7 @@ text in `.claude/skills/optimize-3d-scene/SKILL.md`; reference code in
 | 10 | Smooth scroll progress on touch | Low-pass once upstream (`k ≈ 0.22–0.3`), snap on page jumps. |
 | 11 | No cursor interactivity on mobile | Don't attach the listener; gate on "pointer has actually moved". |
 | 12 | Compress assets | Draco geometry (local decoder), KTX2/Basis textures, per-tier size caps. |
-| 13 | The iOS flicker details | No `resize` on touch, **canvas `lvh` / content `dvh`**, promoted compositor layer, clamped `dt`, dispose on unmount. |
+| 13 | The iOS flicker details | Resize listener on **every** tier, ignoring height-only changes on a coarse pointer (the URL bar) — *not* "no resize on touch". **Canvas `lvh` / content `dvh`**, promoted compositor layer, clamped `dt`, dispose on unmount. |
 | 14 | Verify, then write it down | Re-measure §0 on the same footing; program count must be **stable after the loader**. |
 
 > [!warning] The three traps that cost the most time in the field
@@ -72,6 +72,12 @@ text in `.claude/skills/optimize-3d-scene/SKILL.md`; reference code in
 > 3. **§1 breaks §3 by construction.** `dynamic(ssr: false)` means the scene
 >    can't compile until after hydration — measured at 5.0 s against a loader
 >    that lifted at 2.36 s. Gate the loader on scene-ready, not on a duration.
+> 4. **"No resize on touch" was a bug, not a rule.** The first cut of §13 removed
+>    the resize listener entirely on the mobile tier. That also removed the only
+>    path that could notice a breakpoint drag, a rotation or DevTools emulation
+>    being switched off — the scene kept the phone buffer on a desktop viewport
+>    and drew skewed. Fixed 2026-09-08 (ADR-0023): listen everywhere, skip
+>    height-only changes on a coarse pointer, retune on a tier change.
 
 ## Mapping onto this starter
 

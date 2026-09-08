@@ -1,6 +1,6 @@
 ---
 tags: [meta, decision]
-updated: 2026-08-18
+updated: 2026-09-08
 ---
 
 # Decisions Log (ADRs)
@@ -14,6 +14,42 @@ decisions on top, continuing the numbering. Amending an inherited decision is
 fine; write a new ADR that says so rather than editing the old one.
 
 Template: [[templates/adr-note]].
+
+---
+
+## ADR-0023 — 3D scenes resize on every tier; the iOS URL bar is filtered, not the listener
+
+**Status:** Accepted · 2026-09-08 · amends the `optimize-3d-scene` skill (ADR-0016)
+
+**Decision.** A WebGL scene keeps its rAF-coalesced `resize` /
+`orientationchange` listener on **every** device tier, plus a listener on the
+`(hover: none) and (pointer: coarse)` media query. On a coarse pointer it
+ignores a change that moves `innerHeight` only. Any width change or media-query
+flip re-reads the device tier; if the tier changed, `retune(tier)` re-applies
+DPR (renderer and composer), frame budget, per-tier visibility, draw ranges,
+pointer binding and freeze state before the surface is resized.
+
+**Why.** The skill's earlier rule — no resize listener at all on touch — was
+written to stop the iOS URL bar from rebuilding the framebuffer mid-scroll,
+which reads as a whole-scene flash. It over-corrected. The listener was also the
+only path that could notice a viewport that genuinely changed: a window dragged
+across a breakpoint, a rotation, or DevTools device emulation switched off. A
+scene loaded as a phone then held its 390-wide buffer, 30 fps budget, parked
+pointer and hidden desktop-only passes on a 2160-wide viewport and drew skewed
+until reload. The URL bar only ever changes `innerHeight`, so filtering
+height-only events on a coarse pointer keeps the flicker fix and loses nothing.
+
+**Constraints on retune.** It may touch uniforms, sizes, visibility, draw
+ranges and listeners only — never a define, light count or
+`material.transparent`, so no shader program compiles after the loader (skill
+§3.2). Particle counts vary through `geometry.setDrawRange` on a buffer sized
+for the largest tier, never through a rebuild.
+
+**When building.** Follow `patterns.md` §1, §5 and §14 in the skill; do not
+port the listener-less resize block from `mycelia/src/lib/scene/canvas3d.ts`.
+Verify with the tier-switch round-trip in skill §14: emulation on → off → on
+must move the buffer and draw count both ways with a stable program count.
+See [[optimize-3d-scene]].
 
 ---
 

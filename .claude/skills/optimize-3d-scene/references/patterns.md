@@ -17,14 +17,23 @@ export type DeviceTier = "mobile" | "tablet" | "desktop";
 const TABLET_MAX = 1180;
 const MOBILE_MAX = 768;
 
-/** Read once at scene construction. A device does not change tier mid-session,
- *  and rebuilding buffers on a resize costs more than the mismatch is worth. */
+/** The media-query half of the tier. Subscribe to it (§5): DevTools emulation
+ *  and a mouse plugged into a tablet flip it without any `resize` event. */
+export const COARSE_POINTER_QUERY = "(hover: none) and (pointer: coarse)";
+export const isCoarsePointer = (): boolean =>
+  typeof window !== "undefined" &&
+  typeof window.matchMedia === "function" &&
+  window.matchMedia(COARSE_POINTER_QUERY).matches;
+
+/** Read at scene construction and held in a mutable slot. Never recompute per
+ *  frame and never rebuild buffers on every `resize` event — but DO re-read it
+ *  when the width or the pointer media query changes (§5). Otherwise a window
+ *  dragged across a breakpoint, or emulation switched off, keeps the phone
+ *  tier on a desktop viewport and the scene draws skewed until reload. */
 export const deviceTier = (): DeviceTier => {
   if (typeof window === "undefined") return "desktop";
   const width = window.innerWidth;
-  const coarse =
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(hover: none) and (pointer: coarse)").matches;
+  const coarse = isCoarsePointer();
 
   if (width < MOBILE_MAX || coarse) return "mobile";
   if (width < TABLET_MAX) return "tablet";
@@ -426,43 +435,93 @@ useEffect(() => {
 Source: `mycelia/src/lib/scene/canvas3d.ts`.
 
 ```ts
-/* On mobile we deliberately attach NO resize listener: iOS Safari fires `resize`
- * whenever the URL bar collapses during scroll, which rebuilds the WebGL
- * framebuffer mid-scroll and reads as a full-scene flicker. The canvas is sized
- * once on load and stays that way for the session — the trade-off being that a
- * rotation won't reflow the surface. Desktop keeps the event-driven,
- * rAF-coalesced resize. */
-const isTouchDevice = deviceTier() === "mobile";
+/* The resize path runs on EVERY tier. `mycelia` attaches no listener at all on
+ * touch to dodge the iOS URL bar (Safari fires `resize` each time the bar
+ * collapses during scroll, and rebuilding the framebuffer mid-scroll reads as a
+ * full-scene flicker). That over-corrects: a viewport that really changes — a
+ * window dragged across a breakpoint, a rotation, DevTools emulation switched
+ * off — then kept the phone-sized buffer, budget, parked pointer and hidden
+ * passes, and the scene drew skewed until reload. Do not port that part.
+ *
+ * The URL bar only ever moves `innerHeight`. So: on a coarse pointer, ignore a
+ * height-only change. A width change, or a flip of the pointer media query,
+ * re-reads the tier and retunes before the surface is resized. */
+private currentTier: DeviceTier = deviceTier();
+private lastWidth = window.innerWidth;
+private lastHeight = window.innerHeight;
+private readonly pointerQuery: MediaQueryList | null =
+  typeof window.matchMedia === "function" ? window.matchMedia(COARSE_POINTER_QUERY) : null;
 
-const boundResize = () => {
-  if (resizeRafId !== null) return;      // coalesce: many events, one resize
-  resizeRafId = requestAnimationFrame(() => {
-    resizeRafId = null;
-    resizeSurface();
+private readonly boundResize = (): void => {
+  if (this.resizeRafId !== null) return;   // coalesce: many events, one resize
+  this.resizeRafId = requestAnimationFrame(() => {
+    this.resizeRafId = null;
+    this.handleViewportChange();
   });
 };
 
-if (!isTouchDevice) {
-  window.addEventListener("resize", boundResize, { passive: true });
-  window.addEventListener("orientationchange", boundResize, { passive: true });
+// in the constructor — every tier, no `isTouchDevice` branch
+window.addEventListener("resize", this.boundResize, { passive: true });
+window.addEventListener("orientationchange", this.boundResize, { passive: true });
+this.pointerQuery?.addEventListener("change", this.boundResize);
+
+private handleViewportChange(): void {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  const widthChanged = width !== this.lastWidth;
+  const heightOnly = !widthChanged && height !== this.lastHeight;
+  this.lastWidth = width;
+  this.lastHeight = height;
+
+  /* iOS URL bar: coarse pointer, height moved, width did not. Leave the
+   * framebuffer alone — the canvas is `lvh`-sized, so nothing is uncovered. */
+  if (heightOnly && isCoarsePointer()) return;
+
+  const tier = deviceTier();
+  if (tier !== this.currentTier) {
+    this.currentTier = tier;
+    this.retune(tier);
+  }
+  this.resizeSurface();
+}
+
+/* Re-apply everything that reads the tier. Uniforms, sizes, visibility,
+ * draw ranges and listeners only — never a define, a light count or
+ * `material.transparent` (SKILL §3.2) — so this compiles no program. */
+private retune(tier: DeviceTier): void {
+  this.frameBudget = frameBudgetMs(tier);          // the ticker reads this per tick
+  this.wireframe.visible = tier === "desktop";     // per-tier passes / flags
+  this.points.geometry.setDrawRange(0, COUNT[tier]); // §7: largest buffer allocated up front
+  this.setPointerBinding(wantsPointer(tier));      // §11: bind or unbind, never "attach and ignore"
+  this.composer?.resize(tier);                     // §9: the composer follows the clamp
+  const freeze = sceneShouldFreeze(tier);
+  if (this.frozen && !freeze) this.unfreeze();     // desktop again → draw again
+  else if (!this.frozen && freeze) this.freezeOnSettledFrame();
+  // DPR is applied in resizeSurface(), which always follows a retune.
 }
 
 private resizeSurface(): void {
   const rect = this.parent.getBoundingClientRect();
   const width = this.checkWindow ? window.innerWidth : rect.width;
   const height = this.checkWindow ? window.innerHeight : rect.height;
-  if (this.width === width && this.height === height) return;
+  const ratio = clampedPixelRatio(this.currentTier);
+  if (this.width === width && this.height === height && this.ratio === ratio) return;
 
   this.canvas.width = this.width = width;
   this.canvas.height = this.height = height;
   /* Clamped, not raw. A 3× phone would render 9× the fragments of a 1× screen
    * through additive halos, for no visible gain on soft point sprites. */
-  this.ratio = clampedPixelRatio();
+  this.ratio = ratio;
   this.renderer.setSize(width, height, false);
   this.renderer.setPixelRatio(this.ratio);
   this.resizing.forEach((fn) => fn());
 }
 ```
+
+Verified on a project that shipped the earlier, listener-less version: emulated
+phone → 390×844 drawing buffer, 3 draws; emulation off → 2160×1350, 4 draws
+(the wireframe pass back), **no new programs**; emulation on again → back to
+the phone numbers. A URL-bar collapse on device still produces no resize.
 
 Renderer construction, per tier:
 
@@ -843,10 +902,10 @@ shifts between the two paths.
 
 ```ts
 public dispose(): void {
-  if (!this.isTouchDevice) {
-    window.removeEventListener("resize", this.boundResize);
-    window.removeEventListener("orientationchange", this.boundResize);
-  }
+  window.removeEventListener("resize", this.boundResize);
+  window.removeEventListener("orientationchange", this.boundResize);
+  this.pointerQuery?.removeEventListener("change", this.boundResize);
+  this.setPointerBinding(false);
   if (this.resizeRafId !== null) cancelAnimationFrame(this.resizeRafId);
   this.stopRender();
 
