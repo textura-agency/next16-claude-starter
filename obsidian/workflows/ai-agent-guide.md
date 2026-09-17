@@ -1,6 +1,6 @@
 ---
 tags: [workflow, ai, stable]
-updated: 2026-07-24
+updated: 2026-09-17
 ---
 
 # AI Agent Guide
@@ -51,10 +51,15 @@ consistent with it.
 5. **Routes delegate to views.** `app/**/page.tsx` imports only from `views/`.
 6. **No `any`.** Type everything. Run `yarn lint` before finishing.
 7. **Server Components by default**; `"use client"` only at leaves.
-8. **Performance request + a three.js/WebGL scene in the project → invoke the
+8. **Anything slow, janky or stuttering → invoke the `optimize-performance`
+   skill and measure.** Build, measure in real Chrome, attribute, fix one thing,
+   re-measure — never report a performance win you did not measure. Check first
+   whether the *first* scroll is worse than the second. See
+   [[optimize-performance]].
+9. **Performance request + a three.js/WebGL scene in the project → invoke the
    `optimize-3d-scene` skill first.** It owns the order of fixes; don't improvise
    one. See [[optimize-3d-scene]].
-9. **Verify before reporting done.** Run `.claude/scripts/verify.sh` plus
+10. **Verify before reporting done.** Run `.claude/scripts/verify.sh` plus
    `yarn lint` and `yarn build` after any code change, and the `qa-verify` skill
    after any UI change. Zero FAILs, or say explicitly what you left and why.
    See [[qa-verification]].
@@ -69,6 +74,7 @@ consistent with it.
 | How does animation work? | [[animation-system]], [[text-engine]] |
 | How do I style something? | [[design-system]] |
 | What components/hooks/utils exist? | [[components/animation-springs]], [[components/common]], [[hooks]], [[utils]] |
+| The site feels slow / janky / stutters on scroll? | [[optimize-performance]] |
 | The 3D scene lags / needs optimising? | [[optimize-3d-scene]] |
 | How do I check my work? | [[qa-verification]] |
 | A Figma design needs building | [[figma-to-code]] |
@@ -92,11 +98,11 @@ Full map: [[agent-harness]]. Skills, rules, agents and commands are **registered
 this vault** so the routing is discoverable to any agent or human reading the docs.
 
 **Commands** — `/new-page` · `/section` · `/qa` · `/ship` · `/cms` · `/db` ·
-`/seo` · `/migrate-site`
+`/seo` · `/migrate-site` · `/perf`
 
 **Skills** — `qa-verify`, `figma-to-section`, `payload-cms`, `supabase-db`,
 `supabase-auth`, `seo-audit`, `schema-markup`, `aeo-visibility`, `site-migration`,
-`ship-check`, `optimize-3d-scene`
+`ship-check`, `optimize-performance`, `optimize-3d-scene`
 
 **Agents** — `section-builder`, `motion-reviewer`, `vault-librarian`, `seo-auditor`
 

@@ -1,6 +1,6 @@
 ---
 tags: [meta, decision]
-updated: 2026-09-08
+updated: 2026-09-17
 ---
 
 # Decisions Log (ADRs)
@@ -14,6 +14,47 @@ decisions on top, continuing the numbering. Amending an inherited decision is
 fine; write a new ADR that says so rather than editing the old one.
 
 Template: [[templates/adr-note]].
+
+---
+
+## ADR-0024 — Performance is a measured loop, not a checklist
+
+**Status:** Accepted · 2026-09-17
+
+**Decision.** Performance work runs through the `optimize-performance` skill and
+its loop — build, measure in real Chrome, attribute, fix one thing, re-measure —
+and no performance claim is made without a before/after taken under the same
+config. Hard rule 13. The first diagnostic is always **scroll the whole page
+twice and compare the two passes.**
+
+**Why.** This starter exists for animation-heavy marketing sites, and its
+characteristic failure is invisible to the tool everyone reaches for. Lighthouse
+measures a cold *load* and never scrolls; everything the starter is built for —
+springs on scroll, text engines, Lenis, full-bleed imagery — happens after load.
+The failure mode is a page that stutters on the **first** scroll and is smooth on
+every one after, because lazy media is fetched and decoded in the exact frames a
+reveal animation is running in. Nobody catches it by hand either: by the time you
+scroll your own site, you have warmed it. Only a cold-versus-warm comparison
+shows it, so that comparison is the workflow rather than an optional extra.
+
+Measuring also settles arguments that guessing gets wrong. In the case this
+workflow was written from, frames were dropping to 387ms while the longest
+main-thread task was 21ms — the main thread was idle and the stall was image
+decode in the GPU process. Every hour spent optimising JavaScript there would
+have been wasted.
+
+**When building.** Three constraints follow.
+
+- **Measure the build, never `next dev`**, repeat 3–5 runs, and throttle the CPU
+  4× so a phone's problems are visible on a laptop.
+- **Tracing perturbs what it measures.** Headline numbers come from untraced
+  runs; a trace only explains *why*. The `cc` / `viz` trace categories are
+  banned — their overhead swamps the jank and the problem appears to vanish.
+- **Never warm a page by pre-scrolling it.** It consumes every `mode="once"`
+  reveal and `<Inview>` trigger before anyone sees them. Warm the media instead.
+
+The bench depends on `playwright-core` installed in a scratch directory, kept
+deliberately **out** of the project's dependencies. Details: [[optimize-performance]].
 
 ---
 

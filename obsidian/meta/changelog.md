@@ -1,6 +1,6 @@
 ---
 tags: [meta, changelog]
-updated: 2026-09-08
+updated: 2026-09-17
 ---
 
 # Changelog
@@ -36,6 +36,28 @@ The home view (`src/views/home.tsx`, route `/`) ships empty on purpose — start
 there ([[new-page]]).
 
 <!-- Log this project's changes below, newest first, under a `## YYYY-MM-DD` heading. -->
+
+## 2026-09-17 — performance becomes a measured workflow
+
+- **New skill `optimize-performance`** + `/perf` command + [[optimize-performance]].
+  Performance work now runs a loop — build, measure in real Chrome, attribute,
+  fix one thing, re-measure — instead of applying a checklist. Hard rule 13 in
+  `AGENTS.md` routes any "it's slow / janky / stutters" request into it; the old
+  3D rule moved to 14.
+- **The diagnostic it adds:** scroll the whole page twice and compare cold
+  against warm. A page that stutters on the *first* pass and is smooth after is
+  not slow — it is fetching and decoding lazy media inside the frames a reveal
+  animation is running in. Lighthouse cannot see this (it never scrolls), and
+  neither can you by hand, because you have already warmed the page.
+- **References:** `references/measuring.md` carries the scroll bench (real wheel
+  events over CDP, `requestAnimationFrame` deltas, long tasks, resource timing)
+  and how to read it; `references/fixes.md` carries the fixes, most-likely first,
+  including a `warmMedia` implementation with the four traps that make a naive
+  version silently do nothing.
+- **No new dependency** — the bench uses `playwright-core` installed in a scratch
+  directory, not in the project.
+- See [[decisions-log]] ADR-0024 for why this is a loop rather than a checklist.
+
 
 ## 2026-09-08
 
