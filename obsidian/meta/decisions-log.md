@@ -1,6 +1,6 @@
 ---
 tags: [meta, decision]
-updated: 2026-09-17
+updated: 2026-09-18
 ---
 
 # Decisions Log (ADRs)
@@ -14,6 +14,54 @@ decisions on top, continuing the numbering. Amending an inherited decision is
 fine; write a new ADR that says so rather than editing the old one.
 
 Template: [[templates/adr-note]].
+
+---
+
+## ADR-0025 — Load and runtime performance are separate skills
+
+**Status:** Accepted · 2026-09-18
+
+**Decision.** `optimize-load` owns what Lighthouse measures — the four category
+scores across laptop, tablet and mobile, medians of 3+ runs.
+`optimize-performance` owns what happens after the load — scroll jank and
+micro-freezes. Hard rule 13 routes by which one is slow. Green is **≥ 90**, and
+no score is reported without a re-measurement under the same config.
+
+**Why two skills rather than one.** They look at different halves of the same
+visit and neither can see the other's half. **Lighthouse never scrolls**: it
+measures navigation to settled and stops, so an animation-heavy page can score
+well and still stutter the moment anyone touches it. Conversely the scroll bench
+says nothing about LCP, contrast or crawlability. Merging them would produce a
+skill that runs the wrong tool half the time.
+
+Making load a skill of its own also buys somewhere to keep the findings that cost
+the most to learn, because none of them are discoverable from the report itself:
+
+- **A single run is an anecdote.** On one unchanged build, LCP swung 2.7s → 4.6s
+  and CLS flipped 0 → 0.18 between consecutive runs. Medians are mandatory; the
+  first pass of this work was partly spent chasing noise.
+- **Lighthouse frequently does not name the element that shifted** — its
+  `layout-shifts` audit returns scores with no node. A `PerformanceObserver` on
+  `layout-shift` does, with before/after rects.
+- **A CLS of 0 can mean the trace ended before the shift.** A score that gets
+  worse when the page gets faster is usually this, not a regression.
+- **axe samples animated pages mid-reveal**, reporting text at `opacity: 0.4` as
+  a contrast failure. Fix resting values; the flake is not a defect.
+- **CLS sums distance travelled, not frames**, so speeding an animation up does
+  not reduce it.
+
+**When building.** Three constraints follow.
+
+- **Audit the build, medians, one change at a time** — and **test the hypothesis
+  before acting on it**. An opening loader is the obvious suspect for a bad LCP;
+  measured with it removed, TBT moved ~20ms and two profiles scored *worse*.
+- **A `--content-*` token must clear 4.5:1 at rest** (see [[design-system]]).
+  Add a new Tier-1 alpha and repoint the semantic role — never raise a raw value
+  that a border token shares, since borders are held to 3:1.
+- **When a score is capped by the design, report it with the number and let the
+  user decide.** Per-word text animation costs TBT no markup change touches; a
+  geometry-animated reveal always costs CLS. Neither is a bug, and neither is
+  the agent's call to rewrite. Details: [[optimize-load]].
 
 ---
 

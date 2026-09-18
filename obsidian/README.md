@@ -59,6 +59,7 @@ humans and AI agents (Claude Code, Cursor).
 - [[ship]] — the pre-launch gate and deployment
 - [[seo-aeo]] — SEO & answer-engine visibility as an ongoing practice
 - [[site-migration]] — protecting rankings when rebuilding a live site
+- [[optimize-load]] — Lighthouse across laptop, tablet and mobile; all four categories into the green
 - [[optimize-performance]] — measure the built page in real Chrome, fix what the numbers blame, prove it
 - [[optimize-3d-scene]] — performance work on a three.js/WebGL scene
 

@@ -1,6 +1,6 @@
 ---
 tags: [workflow, deploy, stable]
-updated: 2026-08-18
+updated: 2026-09-18
 ---
 
 # Workflow — Ship
@@ -13,7 +13,8 @@ note records the target, the budget and the deployment facts.
 1. `yarn lint` · `yarn build` · `.claude/scripts/verify.sh` — zero FAILs
 2. [[qa-verification]] across every route and breakpoint
 3. [[seo-aeo]] — indexability first, then metadata, structure, schema
-4. Performance budget (below), **measured** on the deployed URL, mobile profile
+4. Performance budget (below), **measured** — [[optimize-load]] across laptop,
+   tablet and mobile; [[optimize-performance]] as well if the page is animated
 5. Accessibility — keyboard pass, reduced motion, contrast, touch targets
 6. Secrets & env hygiene
 7. Deploy, then verify the deployed thing
@@ -25,10 +26,15 @@ must be complete and live **before** launch. This gate blocks on it.
 
 | Metric | Target |
 |--------|--------|
+| Lighthouse, all four categories | ≥ 90 on laptop, tablet **and** mobile |
 | LCP | ≤ 2.5s |
 | CLS | ≤ 0.1 |
 | INP | ≤ 200ms |
 | Animation | 60fps on a mid-range phone |
+
+Take the **median of 3+ runs** per profile — a single run is an anecdote. Where a
+target cannot be met without changing the design's motion or content budget, ship
+the number and the reason rather than a silent miss ([[optimize-load]]).
 
 This starter is animation-heavy, so the usual offenders are ours: an unprioritised
 hero image, layout-animating springs, and WebGL. A three.js/WebGL scene goes

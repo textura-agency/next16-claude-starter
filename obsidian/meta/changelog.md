@@ -1,6 +1,6 @@
 ---
 tags: [meta, changelog]
-updated: 2026-09-17
+updated: 2026-09-18
 ---
 
 # Changelog
@@ -36,6 +36,38 @@ The home view (`src/views/home.tsx`, route `/`) ships empty on purpose — start
 there ([[new-page]]).
 
 <!-- Log this project's changes below, newest first, under a `## YYYY-MM-DD` heading. -->
+
+## 2026-09-18 — `optimize-load`: Lighthouse as a measured workflow
+
+- **New skill `optimize-load`** + `/load` command + [[optimize-load]]. Audits all
+  four Lighthouse categories across **laptop, tablet and mobile**, medians of 3+
+  runs, then fixes what the audit blames and re-measures. Hard rule 13 now routes
+  by *which half* is slow — load → `optimize-load`, scroll jank after load →
+  `optimize-performance` — because Lighthouse never scrolls and cannot see the
+  second.
+- **`references/runner.md`** carries the Lighthouse Node-API runner (three form
+  factors, medians, per-audit failures by weight), a `PerformanceObserver` CLS
+  probe — Lighthouse routinely reports shifts with **no node attached** — and the
+  WCAG contrast arithmetic.
+- **`references/fixes.md`** carries the fixes by weight (TBT 30 · LCP 25 · CLS 25),
+  the LCP phase-breakdown table that names which fix applies, the measured
+  contrast floors (**0.55 black on light, 0.46 white on black**), and the
+  width-reservation pattern for figures that count up.
+- **Findings worth carrying between projects**, all recorded: a single run is an
+  anecdote (LCP swung 2.7→4.6s on an unchanged build); axe samples animated pages
+  mid-reveal and reports artifacts; CLS sums distance, not frames, so speeding an
+  animation up does nothing; and a CLS of 0 may just mean the trace ended early.
+- **Ownership tidied so the skills cannot drift** — `seo-audit` §5 and
+  [[seo-aeo]] now delegate Core Web Vitals to `optimize-load` instead of
+  restating them (they were still advising a single Lighthouse run on one
+  profile).
+- **The ship gate now routes through it** — [[ship]] and the `ship-check` skill
+  ask for all four categories ≥ 90 on all three profiles, medians of 3+, and name
+  `optimize-performance` as the second pass Lighthouse cannot do.
+- **No new dependency** — both scripts install into a scratch directory.
+- See [[decisions-log]] ADR-0025 for why this is a second skill rather than an
+  extension of the first.
+
 
 ## 2026-09-17 — performance becomes a measured workflow
 

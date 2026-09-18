@@ -1,6 +1,6 @@
 ---
 tags: [workflow, ai, stable]
-updated: 2026-09-17
+updated: 2026-09-18
 ---
 
 # The Agent Harness (`.claude/`)
@@ -63,7 +63,8 @@ something an agent actually runs. ADR: [[decisions-log]] ADR-0018.
 | `aeo-visibility` | AI/answer-engine visibility | [[seo-aeo]] |
 | `site-migration` | rebuilding an existing live site | [[site-migration]] |
 | `ship-check` | pre-launch gate | [[ship]] |
-| `optimize-performance` | anything slow, janky or stuttering on scroll | [[optimize-performance]] |
+| `optimize-load` | Lighthouse scores, Core Web Vitals, "get it in the green" | [[optimize-load]] |
+| `optimize-performance` | scroll jank or stutter *after* the load | [[optimize-performance]] |
 | `optimize-3d-scene` | perf work on a three.js/WebGL scene | [[optimize-3d-scene]] |
 
 ## Agents
@@ -77,7 +78,7 @@ something an agent actually runs. ADR: [[decisions-log]] ADR-0018.
 
 ## Commands
 
-`/new-page` · `/section` · `/qa` · `/ship` · `/cms` · `/db` · `/seo` · `/migrate-site` · `/perf`
+`/new-page` · `/section` · `/qa` · `/ship` · `/cms` · `/db` · `/seo` · `/migrate-site` · `/perf` · `/load`
 
 ## Registering something new
 

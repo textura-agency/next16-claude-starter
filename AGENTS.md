@@ -68,14 +68,17 @@ Notes link each other with `[[wikilinks]]` — follow them to navigate.
     the starter. Use the `payload-cms` / `supabase-db` skills; see
     `obsidian/backend/cms-payload.md`. Note `middleware.ts` does not exist in
     Next 16 — it is `proxy.ts`.
-13. **Performance → measure, never guess.** If the request is about speed, jank,
-    micro-freezes or scroll smoothness, invoke the **`optimize-performance`**
-    skill and follow its loop: build, measure in real Chrome, attribute, fix one
-    thing, re-measure. Never report a performance win you did not measure. The
-    first thing to check is whether the *first* scroll is worse than the second —
-    that is first-visit work landing inside animating frames, and it is the most
-    common cause in this starter. See
-    `obsidian/workflows/optimize-performance.md`.
+13. **Performance → measure, never guess.** Build, measure, attribute, fix one
+    thing, re-measure. **Never report a performance win you did not measure.**
+    Two skills, by what is slow:
+    - **Load** — Lighthouse scores, Core Web Vitals, accessibility, SEO, "get it
+      in the green" → **`optimize-load`**. Always all four categories across
+      laptop, tablet and mobile, median of 3+ runs; green is ≥ 90, not 100. See
+      `obsidian/workflows/optimize-load.md`.
+    - **After load** — scroll jank, micro-freezes, dropped frames →
+      **`optimize-performance`**. Check first whether the *first* scroll is worse
+      than the second; Lighthouse never scrolls and cannot see this. See
+      `obsidian/workflows/optimize-performance.md`.
 14. **3D performance → use the skill.** If the request is about performance,
     jank, or shipping readiness **and** the project renders a three.js / WebGL
     scene (`three` in `package.json`, or a canvas with a render loop), invoke the

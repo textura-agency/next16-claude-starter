@@ -56,17 +56,23 @@ Validate the JSON-LD parses and references real on-page content.
 
 ## 5. Performance (Core Web Vitals)
 
-This starter is animation-heavy, so its risks are specific:
+Core Web Vitals are a ranking factor, so they belong in an SEO audit — but this
+skill does **not** own them. Hand the measuring and fixing to **`optimize-load`**,
+which audits all four categories across laptop, tablet and mobile on medians of
+3+ runs, and report its numbers here. Do not run a single Lighthouse pass and
+quote it: LCP and CLS swing wildly between identical runs.
 
-- **LCP** — hero images use `next/image` with `priority`; fonts load via
-  `next/font` (already wired) with no layout shift.
-- **CLS** — every image has explicit dimensions; nothing animates layout on load.
-- **INP** — springs run through the shared ticker; no per-frame work on the main
-  thread that could have been GPU-side.
+What to check specifically from the SEO side:
+
+- The numbers came from the **built** site (`yarn build && yarn start`) or the
+  deployed URL — never `next dev`.
+- **Every internal link resolves.** A link to a route that does not exist is a
+  crawl error as well as a console error; `optimize-load` catches it, and it is
+  usually the cheapest fix on the board.
 - If the project renders a three.js/WebGL scene, **stop and use the
   `optimize-3d-scene` skill** — it owns that order of fixes.
-- Check the real numbers, not vibes: Lighthouse or PageSpeed on the deployed URL,
-  mobile profile.
+- Lighthouse never scrolls. If the page is animation-heavy, a good score still
+  says nothing about how it feels to use — that is `optimize-performance`.
 
 ## 6. The animation-specific crawler risk
 

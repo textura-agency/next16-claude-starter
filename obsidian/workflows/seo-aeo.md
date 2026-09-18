@@ -1,6 +1,6 @@
 ---
 tags: [workflow, seo, stable]
-updated: 2026-08-18
+updated: 2026-09-18
 ---
 
 # Workflow — SEO & AEO
@@ -22,7 +22,8 @@ crawled is worth nothing, so the audit always runs in this order:
 3. **Content structure** — one `<h1>`, real hierarchy, answer-first copy,
    descriptive internal links, alt text
 4. **Structured data** — `Organization` + `WebSite` minimum
-5. **Performance** — measured, mobile
+5. **Performance** — Core Web Vitals are a ranking factor; measure them with
+   [[optimize-load]] (laptop, tablet and mobile, medians) rather than a single run
 6. **AEO** — llms.txt, crawler policy, entity consistency
 
 ### The failure this project is most prone to

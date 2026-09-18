@@ -36,12 +36,18 @@ Run the `seo-audit` skill. Non-negotiable before launch:
 
 ## 4. It is fast
 
-Measure, do not guess — Lighthouse on the deployed URL, mobile profile.
+Measure, do not guess. Run the **`optimize-load`** skill against the deployed URL
+— all four categories across laptop, tablet and mobile, median of 3+ runs. A
+single Lighthouse run is an anecdote.
 
+- Green is ≥ 90 on every category and every profile, or the gap is stated with
+  its number and its cause
 - LCP ≤ 2.5s, CLS ≤ 0.1, INP ≤ 200ms
 - Hero image `priority`; every image sized; fonts via `next/font`
+- Lighthouse never scrolls, so it cannot see scroll jank — if the page is
+  animation-heavy, also run **`optimize-performance`** and check the first scroll
+  against the second
 - If a WebGL/three.js scene exists → the `optimize-3d-scene` skill first
-- Animation stays at 60fps on a mid-range phone, not just a laptop
 
 ## 5. It is usable by everyone
 
