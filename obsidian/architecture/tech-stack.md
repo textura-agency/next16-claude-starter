@@ -1,6 +1,6 @@
 ---
 tags: [architecture, stable]
-updated: 2026-05-21
+updated: 2026-09-30
 ---
 
 # Tech Stack
@@ -12,8 +12,8 @@ Package name: `next16-claude-starter` · version `0.1.0` · private.
 
 | Package | Version | Role |
 |---------|---------|------|
-| `next` | `16.3.1` | App Router framework. ⚠️ See warning below. |
-| `react` / `react-dom` | `19.2.8` | UI runtime |
+| `next` | `16.3.7` | App Router framework. ⚠️ See warning below. |
+| `react` / `react-dom` | `19.3.0` | UI runtime |
 | `typescript` | `^5` | Type system — `any` is banned |
 
 > [!warning] This is not the Next.js you may know
@@ -48,7 +48,7 @@ No `framer-motion`, no CSS transitions/keyframes. See [[animation-system]] and
 | `lenis` | `^1.3.26` | Smooth scrolling |
 | `zustand` | `^5.0.15` | Lightweight global state (scroll store) |
 | `resize-observer-polyfill` | `^1.5.1` | ResizeObserver fallback for animation hooks |
-| `zod` | `^4.4.3` | Schema validation — env (`src/env.ts`) + API payloads. See [[api-architecture]] |
+| `zod` | `^4.6.5` | Schema validation — env (`src/env.ts`) + API payloads. See [[api-architecture]] |
 
 See [[smooth-scroll]] and [[data-flow]].
 
@@ -92,8 +92,8 @@ Re-test these periodically rather than assuming they are still blocked:
 | Package | Held at | Latest | Why |
 |---------|---------|--------|-----|
 | `typescript` | `^5.9.3` | `7.0.2` | `eslint-config-next` depends on `typescript-eslint@8`, whose peer range is `typescript >=4.8.4 <6.1.0`. TS 7 (the native Go compiler, GA July 2026) would break linting. Revisit when typescript-eslint supports it. |
-| `eslint` | `^9.39.4` | `10.8.1` | **Tested and reverted.** ESLint 10 crashes `eslint-plugin-react` (`context.getFilename()` was removed): `TypeError: contextOrFilename.getFilename is not a function`. Three of Next's bundled plugins still declare `eslint ^9` peers. |
-| `@types/node` | `^24` | `26.2.0` | Tracks the Node major actually in use (24), not the newest published. |
+| `eslint` | `^9.39.4` | `10.11.0` | **Tested and reverted.** ESLint 10 crashes `eslint-plugin-react` (`context.getFilename()` was removed): `TypeError: contextOrFilename.getFilename is not a function`. Three of Next's bundled plugins still declare `eslint ^9` peers. |
+| `@types/node` | `^24.19.0` | `26.6.3` | Tracks the Node major actually in use (24), not the newest published. |
 
 ## Not in the starter — chosen, but added per project
 
@@ -109,7 +109,7 @@ only when a project needs them (ADR-0020):
 
 > [!note] Payload compatibility — satisfied as of 2026-08-18
 > `@payloadcms/next` 3.88 peer-requires `next >=16.2.6 <17`. The starter is on
-> `16.3.1`, so it now satisfies that range. Re-check when either side moves.
+> `16.3.7`, so it now satisfies that range. Re-check when either side moves.
 
 Still undecided: payments, i18n, data-fetching libraries, testing. Document here
 when adopted and add an ADR to [[decisions-log]].

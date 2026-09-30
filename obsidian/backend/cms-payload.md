@@ -56,7 +56,7 @@ src/
 ## Version constraint — currently satisfied
 
 `@payloadcms/next` 3.88 peer-requires `next >=16.2.6 <17`. The starter runs
-`16.3.1` (as of 2026-08-18), so no bump is needed. **Re-check before installing** —
+`16.3.7` (as of 2026-09-30), so no bump is needed. **Re-check before installing** —
 this is a moving target on both sides, and it was a genuine blocker until the
 dependency refresh. Payload's own blank template tracks Next 16.3 / React 19.2.
 

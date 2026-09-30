@@ -1,6 +1,6 @@
 ---
 tags: [meta, changelog]
-updated: 2026-09-18
+updated: 2026-09-30
 ---
 
 # Changelog
@@ -36,6 +36,18 @@ The home view (`src/views/home.tsx`, route `/`) ships empty on purpose — start
 there ([[new-page]]).
 
 <!-- Log this project's changes below, newest first, under a `## YYYY-MM-DD` heading. -->
+
+## 2026-09-30 — Dependency refresh: Next 16.3.7, React 19.3
+
+Bumped to pick up upstream Turbopack fixes in the 16.3.x patch line.
+
+- `next` + `eslint-config-next` 16.3.1 → 16.3.7
+- `react` / `react-dom` 19.2.8 → 19.3.0 (and `@types/react*` → 19.3.0)
+- `zod` 4.4.3 → 4.6.5 · `@types/node` → 24.19.0
+- Still held back (see [[tech-stack]] § Deliberately held back): ESLint 10,
+  TypeScript 7, `@types/node` 26.
+- Installs must run on the `.nvmrc` Node (24.16.0); Yarn rejects Node < 20.19
+  via `engines`.
 
 ## 2026-09-18 — `optimize-load`: Lighthouse as a measured workflow
 
