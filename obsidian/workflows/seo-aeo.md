@@ -1,6 +1,6 @@
 ---
 tags: [workflow, seo, stable]
-updated: 2026-09-18
+updated: 2026-10-06
 ---
 
 # Workflow — SEO & AEO
@@ -16,8 +16,9 @@ ADR: [[decisions-log]] ADR-0021.
 Indexability outranks everything. A perfectly optimised page that cannot be
 crawled is worth nothing, so the audit always runs in this order:
 
-1. **Indexability** — `robots.ts`, `sitemap.ts` coverage, canonicals,
-   `NEXT_PUBLIC_SITE_URL`, no accidental dynamic rendering
+1. **Indexability** — `robots.ts`, `sitemap.ts` coverage, canonicals (never
+   localhost), no accidental dynamic rendering, **no content inside a `hidden`
+   streaming segment** (curl as a bot)
 2. **Metadata** — unique title/description per route, OG resolving absolutely
 3. **Content structure** — one `<h1>`, real hierarchy, answer-first copy,
    descriptive internal links, alt text
@@ -53,14 +54,44 @@ consistency of facts about an entity across the whole web. Practically:
 > `Google-Extended`) versus search/citation crawlers (`OAI-SearchBot`,
 > `Claude-SearchBot`, `PerplexityBot`). Ask before editing `robots.ts`.
 
+## What production taught
+
+Measured or found on 50+ sites built from this starter ([[fix-catalog]] §8):
+
+- **Lighthouse SEO 100 hides real defects.** 11 of 12 live sites served
+  `http://localhost:3000` as canonical, `og:url` and sitemap `<loc>` while scoring
+  100 — a canonical *exists*. Three sites scored 100 titled "New Project". Check the
+  values, not the score: `curl -s <url>/ | grep -o 'rel="canonical"[^>]*'`, curl
+  the `og:image` URL (200), read `/sitemap.xml`.
+- **The origin is known at build time:** `NEXT_PUBLIC_SITE_URL` →
+  `VERCEL_PROJECT_PRODUCTION_URL` → localhost. Reading the request host makes every
+  route dynamic. A run-time sync to `location.origin` must run **after
+  hydration** (before it, React inserted duplicate canonicals).
+- **An empty `app/loading.tsx` hides the page from non-JS crawlers** (GPTBot,
+  ClaudeBot, PerplexityBot): the route streams into `<div hidden>`. The starter
+  ships without one; don't add one that renders `null`. Check:
+  `curl -s -A GPTBot <url>/` — the `<h1>` must not sit under a `hidden` ancestor.
+- **Robots get the robot form**: `src/proxy.ts` rewrites bot UAs — search
+  engines, lab tools and **AI crawlers** — to a prerendered `/robot-view` of the
+  same route: same content, metadata and canonical, no loader, no motion, the
+  scene as a still. It keeps `/` static for people and gives PageSpeed a page at
+  rest (robot mobile up to 54 → 100). Same content only — different content for
+  crawlers is cloaking. Never `await isBot()` in a page.
+- **Linked-but-missing routes cost Best Practices** — `<Link>` prefetches them
+  (console 404). Build the page or point at a section hash.
+- **Share cards:** 1200 × 630, the composed hero or a designed card, real brand
+  title (≤ 60 chars), description from the site's copy, no placeholder handle —
+  `yarn qa:brand`.
+
 ## What this project already has
 
-`siteConfig` as the single source of truth, `generateMetadata`/`generateViewport`,
-`robots.ts`, `sitemap.ts`, `Organization` + `WebSite` JSON-LD, and an
-animation system that only animates opacity/transform — so revealed content is in
-the DOM for crawlers regardless. Keep it that way, and prefer the
-[[animation-system|ReducedMotion]] path over `isBot()` branching, which costs
-static rendering and edges toward cloaking ([[seo-metadata]]).
+`siteConfig` as the single source of truth (origin with the Vercel fallback),
+`generateMetadata`/`generateViewport`, `robots.ts`, `sitemap.ts`, `Organization` +
+`WebSite` JSON-LD, the robot form behind `src/proxy.ts`, and an animation system
+that only animates opacity/transform — so revealed content is in the DOM for
+crawlers regardless. Keep it that way: branch on the robot form through the proxy
+and `useMotionOff()`, never with `await isBot()` in a page, which costs static
+rendering ([[seo-metadata]]).
 
 ## Honesty
 
@@ -69,4 +100,4 @@ weeks to surface and vary between platforms and runs. Say so.
 
 ## Related
 
-[[seo-metadata]] · [[html-semantics]] · [[ship]] · [[site-migration]] · [[agent-harness]]
+[[seo-metadata]] · [[html-semantics]] · [[fix-catalog]] · [[testing-pipeline]] · [[ship]] · [[site-migration]] · [[agent-harness]]

@@ -62,7 +62,7 @@ Rendered page — Server Components by default; "use client" only at animation l
   on the server.
 - **`"use client"` only at the leaves** — animation components and views that use
   hooks. Never mark a layout/page client just to avoid a boundary.
-- `isBot()` lets Server Components skip heavy animation for crawlers — see [[seo-metadata]].
+- Crawlers get the **robot form**: `src/proxy.ts` rewrites bot UAs on `/` to `/robot-view` (the same view at rest), so every route stays static — see [[robot-form]]. (`isBot()` reads `headers()` and makes a route dynamic — route handlers only.)
 
 ## Key entry points
 

@@ -1,6 +1,6 @@
 ---
 tags: [meta, stable]
-updated: 2026-05-21
+updated: 2026-10-06
 ---
 
 # Meta — How this vault works
@@ -19,6 +19,7 @@ the codebase. The code is the *what*; this vault is the *why* and *how*.
 obsidian/
 ├── README.md          ← vault home / Map of Content
 ├── meta/           ← docs about the docs, changelog, decisions
+├── knowledge/      ← measured fixes and pitfalls from production sites
 ├── architecture/   ← system-level: stack, structure, data flow
 ├── frontend/       ← everything UI: routing, styling, animation, components
 ├── backend/        ← reserved — no backend exists yet
@@ -42,18 +43,27 @@ obsidian/
 3. When a component/hook is added → document it and link it from the relevant catalog.
 4. Keep [[frontend/animation-system]] in sync with `src/components/animation/` —
    that code is the heart of the starter.
+5. When a fix moves a measured number, or a trap costs real time → an entry in
+   [[fix-catalog]] or [[pitfalls]], by the evidence rules in
+   [[knowledge/README]]: before → after under the same config; *observed* on 1–2
+   sites, *rule* at 3. Promote a rule into its skill and workflow in the same
+   change.
 
 ## Inherited vs. project content
 
 Two notes behave differently from the rest when a project is started from this
 starter:
 
-- **[[decisions-log]]** ships **populated**. ADR-0001 … ADR-0022 explain why the
+- **[[decisions-log]]** ships **populated**. ADR-0001 … ADR-0026 explain why the
   starter's conventions exist, and notes across the vault link to them by number
   — so keep the numbers stable. Add your project's decisions on top. Amending an
   inherited decision is fine: write a new ADR saying so rather than editing the old.
 - **[[changelog]]** ships **empty**, with a baseline entry describing what the
   starter provides. It logs *this* project's history, not the starter's.
+- **[[fix-catalog]] and [[pitfalls]]** ship **populated** with what 50+
+  production sites taught. Keep adding your project's measured fixes and traps;
+  an entry that recurs in three projects is worth proposing upstream to the
+  starter.
 
 Everything else is written to be edited in place as the project diverges.
 

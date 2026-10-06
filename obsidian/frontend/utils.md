@@ -1,17 +1,41 @@
 ---
 tags: [frontend, stable]
-updated: 2026-05-21
+updated: 2026-10-06
 ---
 
 # Catalog — Utilities
 
 Pure helper functions in `src/utils/` (no side effects, unless noted).
 
+## `bot-ua.ts`
+
+`BOT_UA` / `isBotUserAgent(ua)` — the one list of crawlers, AI crawlers (GPTBot,
+ClaudeBot, PerplexityBot, …) and lab tools (Lighthouse, PageSpeed). Read by
+`src/proxy.ts` (the robot form) and `isBot()`. See [[robot-form]].
+
 ## `is-bot.ts`
 
-`isBot(): Promise<boolean>` — **server-only**. Reads the `user-agent` header,
-returns `true` for crawlers/audit tools. Used to skip heavy animation for bots.
-See [[seo-metadata]].
+`isBot(): Promise<boolean>` — **server-only**, reads `headers()`, which makes
+the calling route **dynamic** for every visitor. Never in a page, view or
+layout — the proxy routes robots. Route handlers only. See [[seo-metadata]].
+
+## `warm-image.ts` — `warmImage`
+
+`warmImage(spec): Promise<HTMLImageElement>` — downloads and decodes exactly
+the candidate a rendered `<Image>` with the same `spec` will pick
+(`getImageProps` → `sizes`, `srcset`, then `src`). Use it wherever code fetches
+an image itself: a preloader, a reveal, a canvas/WebGL texture, a
+`new Image()`. A raw `/assets/x.png` downloads the source file — measured on
+four production sites: page 11.5 → 0.57 MB and hosted mobile LCP 31 → 3.7 s; a
+canvas reveal 2,776 → 20 KB. *Rule.* CSS backgrounds: the same `getImageProps`
+`srcSet`, written as `image-set(url(…) 1x, url(…) 2x)`. Warm below-the-fold
+media after `load`, in idle time.
+
+## `stable-viewport.ts`
+
+`subscribeStableViewport` / `getStableViewportHeight` / `isTouchViewport` — a
+viewport height that ignores the iOS toolbar (re-measured on touch devices
+only when the width changes). Powers `<SceneViewport>`; see [[webgl-scenes]].
 
 ## `scroll-to.ts`
 
@@ -47,6 +71,9 @@ changes here are felt everywhere.
 CSS-string builders for viewport-height units with fallbacks
 (`vh` → `lvh` → `calc(var(--vh) …)`): `heightLvh`, `minHeightLvh`, `marginTopLvh`,
 `marginBottomLvh`. Solves mobile-browser viewport-height inconsistencies.
+`lvh` is right for a scene box and wrong for UI with something at its bottom (a
+menu's CTA hides under the iOS toolbar) — that takes `dvh` + the safe area
+([[mobile-menus]]).
 
 ## `animation/coords.ts`
 

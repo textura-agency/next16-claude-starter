@@ -27,9 +27,21 @@ const publicSchema = z.object({
   NEXT_PUBLIC_SITE_URL: optionalUrl(),
 });
 
+/** An optional string, empty treated as unset (same reason as `optionalUrl`). */
+const optionalString = () =>
+  z.preprocess((v) => (v === "" ? undefined : v), z.string().optional());
+
 const serverSchema = z.object({
   /** Optional upstream the contact endpoint forwards leads to (CRM / webhook). */
   CONTACT_ENDPOINT: optionalUrl(),
+  /**
+   * Vercel's production domain (a system variable, set at build time, no
+   * scheme). The site's origin falls back to it when `NEXT_PUBLIC_SITE_URL` is
+   * unset — see `src/lib/site.ts`.
+   */
+  VERCEL_PROJECT_PRODUCTION_URL: optionalString(),
+  /** `production` | `preview` | `development` on Vercel builds (system variable). */
+  VERCEL_ENV: optionalString(),
 });
 
 /** Public env — safe to read anywhere (server or client). */
@@ -46,6 +58,8 @@ let cachedServerEnv: z.infer<typeof serverSchema> | undefined;
 export function getServerEnv() {
   cachedServerEnv ??= serverSchema.parse({
     CONTACT_ENDPOINT: process.env.CONTACT_ENDPOINT,
+    VERCEL_PROJECT_PRODUCTION_URL: process.env.VERCEL_PROJECT_PRODUCTION_URL,
+    VERCEL_ENV: process.env.VERCEL_ENV,
   });
   return cachedServerEnv;
 }

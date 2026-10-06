@@ -16,10 +16,15 @@ single source of truth for how this project is built.
 - `obsidian/workflows/ai-agent-guide.md` — full rules of engagement
 - The relevant topic note (e.g. `frontend/animation-system.md` before animation
   work, `workflows/new-page.md` before building a page)
+- Before optimising anything: `obsidian/knowledge/fix-catalog.md` and
+  `obsidian/knowledge/pitfalls.md` — fixes measured on many production sites,
+  and the traps that misled the measurements. Try *rule* entries first.
 
 **Commands, skills and agents** live in `.claude/` and are mapped in
 `obsidian/workflows/agent-harness.md`. Common entry points: `/new-page`,
-`/section`, `/qa`, `/ship`, `/cms`, `/db`, `/seo`, `/migrate-site`.
+`/section`, `/qa`, `/ship`, `/cms`, `/db`, `/seo`, `/migrate-site`, `/perf`,
+`/load`, `/mobile`. The testing tools are `tools/qa/*` (`yarn qa:*`) — see
+`tools/qa/README.md` and `obsidian/workflows/testing-pipeline.md`.
 
 Notes link each other with `[[wikilinks]]` — follow them to navigate.
 
@@ -61,8 +66,8 @@ Notes link each other with `[[wikilinks]]` — follow them to navigate.
     a clean heading outline, named landmarks, real `button`/`a`, `alt` text,
     JSON-LD (not microdata), semantic `tag` on animation components. See
     `obsidian/frontend/html-semantics.md`.
-11. **Verify before reporting done.** `.claude/scripts/verify.sh` (zero FAILs) +
-    `yarn lint` + `yarn build` after any code change, and the `qa-verify` skill
+11. **Verify before reporting done.** `yarn verify` (`.claude/scripts/verify.sh`,
+    zero FAILs) + `yarn lint` + `yarn build` after any code change, and the `qa-verify` skill
     after any UI change. See `obsidian/workflows/qa-verification.md`.
 12. **CMS & database are Payload + Supabase**, added per project — not shipped in
     the starter. Use the `payload-cms` / `supabase-db` skills; see
@@ -70,24 +75,58 @@ Notes link each other with `[[wikilinks]]` — follow them to navigate.
     Next 16 — it is `proxy.ts`.
 13. **Performance → measure, never guess.** Build, measure, attribute, fix one
     thing, re-measure. **Never report a performance win you did not measure.**
-    Two skills, by what is slow:
-    - **Load** — Lighthouse scores, Core Web Vitals, accessibility, SEO, "get it
-      in the green" → **`optimize-load`**. Always all four categories across
-      laptop, tablet and mobile, median of 3+ runs; green is ≥ 90, not 100. See
+    Records come from `tools/qa/*` against a **production build** (`yarn build &&
+    yarn start`, never `next dev`), PC and mobile, median of 3+ runs, confirmed
+    on the real host. **The bar:** Performance ≥ 90 on PC and mobile;
+    Accessibility, Best Practices and SEO **100** — for people and for the
+    robot form; scroll **ideal** (no frame > 50 ms) on PC and phone, first and
+    second visit. Run `yarn qa:setup` once per machine. Two skills, by what is slow:
+    - **Load** — Lighthouse scores, Core Web Vitals, accessibility, SEO →
+      **`optimize-load`** (`yarn qa:lh`, `yarn qa:axe`). See
       `obsidian/workflows/optimize-load.md`.
     - **After load** — scroll jank, micro-freezes, dropped frames →
-      **`optimize-performance`**. Check first whether the *first* scroll is worse
-      than the second; Lighthouse never scrolls and cannot see this. See
+      **`optimize-performance`** (`yarn qa:scroll`, `--first-scroll` after a
+      loader). Check first whether the *first* scroll is worse than the second;
+      Lighthouse never scrolls and cannot see this. See
       `obsidian/workflows/optimize-performance.md`.
 14. **3D performance → use the skill.** If the request is about performance,
     jank, or shipping readiness **and** the project renders a three.js / WebGL
     scene (`three` in `package.json`, or a canvas with a render loop), invoke the
     **`optimize-3d-scene`** skill first and follow its order of fixes — don't
     improvise one. See `obsidian/workflows/optimize-3d-scene.md`.
+15. **Routes stay static; crawlers get the robot form.** Never `headers()`,
+    `cookies()` or `isBot()` in a page, view, layout, `lib/site` or the SEO
+    helpers — `src/proxy.ts` routes bots (search and AI crawlers) to
+    `/robot-view`. Don't add an `app/loading.tsx` without a real skeleton (an
+    empty one hides the page from non-JS crawlers). The consent banner is
+    server-rendered — it is often the phone's LCP. See
+    `obsidian/frontend/robot-form.md`, `.claude/rules/seo-robot.md`.
+16. **Loops and frames.** Every looping spring reads `useMotionOff()` (reduced
+    motion and the robot form would otherwise freeze the page). Per-frame code
+    scales by `dt` in seconds (`src/lib/scene/per-frame.ts`) — 120 Hz phones run
+    per-frame steps twice as fast. **No fixed frame cap on phones** (it reads as
+    choppy); desktop scenes may gate the draw at ~60 fps (`createDrawGate`).
+    Never stop drawing a canvas that is on screen; recover lost WebGL contexts
+    (`src/lib/scene/webgl-context.ts`). See `.claude/rules/scenes.md`.
+17. **Phones are checked on phones.** Lab tools miss what a person sees on an
+    iPhone: Safari's toolbar resizing the viewport, 120 Hz speed, lost GPU
+    contexts, menus under the bottom bar, dark-mode overlays, touch sliders.
+    Full-screen scene boxes use the large viewport (`<SceneViewport>`); menus
+    use `h-dvh` + the safe area, their own colour token and a portal under
+    `<body>`. Something wrong on a phone → **`mobile-device-qa`** (`/mobile`,
+    `yarn qa:ios`, `qa:fps`, `qa:context`, `qa:webkit` — WebKit for iOS-only
+    bugs). Before calling UI done, have it opened on a real phone; if that
+    didn't happen, say so. See `obsidian/workflows/mobile-device-qa.md`.
+18. **No placeholders at launch.** `src/lib/site.ts` ships `TODO:` values on
+    purpose: every build warns and a Vercel **production** build fails until
+    the name, description, URL and brand assets are filled (brand kit:
+    `yarn qa:brand`). See `obsidian/frontend/seo-metadata.md`.
 
 ## After making changes
 
 Update the vault: dependency changes → `tech-stack.md` + `changelog.md`;
+a measured fix or a trap worth keeping → `obsidian/knowledge/` (evidence rules in
+its README);
 architectural choices → an ADR in `decisions-log.md`; new component/hook/util →
 the relevant catalog note. The `vault-librarian` agent can do this pass for you.
 

@@ -3,7 +3,7 @@
 
 import { create } from "zustand";
 
-const STORAGE_KEY = "cookie-consent-v1";
+import { CONSENT_STORAGE_KEY as STORAGE_KEY } from "./consent-flag";
 
 export type CookieConsent = {
   /** Strictly necessary — always true, never user-disabled. */
@@ -58,7 +58,9 @@ export const useCookieStore = create<CookieStore>((set) => ({
   modalOpen: false,
   hydrate: () => set({ consent: loadConsent(), hydrated: true }),
   acceptAll: () => {
-    const next: CookieConsent = { necessary: true, analytics: false, marketing: false };
+    // "Accept all" means every category on — it used to save them all off,
+    // which made it the same choice as "Reject all".
+    const next: CookieConsent = { necessary: true, analytics: true, marketing: true };
     saveConsent(next);
     set({ consent: next, modalOpen: false });
   },

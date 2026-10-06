@@ -25,8 +25,15 @@ Full note: `obsidian/frontend/routing.md` (ADR-0003)
 - **Metadata** comes from `generateMetadata` / `generateViewport` in
   `src/utils/seo/generate-page-metadata.ts`. Add a `sitemap.ts` entry per new route.
 
+- **Routes stay static.** No `headers()` / `cookies()` / `await isBot()` in a
+  page, view or layout. `src/proxy.ts` routes robots to `app/robot-view/`
+  (`<HomeView robot />`) — an animated route gets the same pair. No
+  `loading.tsx` that returns `null` (it hides the page from non-JS crawlers).
+  See `.claude/rules/seo-robot.md`.
+
 Adding a route: `app/<route>/page.tsx` → `src/views/<route>.tsx` → follow
-`obsidian/workflows/new-page.md`.
+`obsidian/workflows/new-page.md`. Every `<Link>`ed route must exist —
+a prefetched 404 fails Best Practices on every page.
 
 The home view (`src/views/home.tsx`) ships empty — if the project is otherwise
 empty, start there rather than scaffolding a new route.

@@ -36,7 +36,11 @@ the file and in the handover** so it reaches legal before launch.
 
 **Read the skill's §3 first.** axe samples once; on an animated page it catches
 reveals mid-flight and reports text at `opacity: 0.4` as a contrast failure.
-Those are artifacts. What is *not* an artifact is a token that fails at rest.
+Those are artifacts of *when* axe looked — but they still cost the score, and
+they are fixable without changing the look: reveal first-screen copy with
+transform / clip / a mask sweep while opacity stays 1, removed at rest (skill
+§3; `tools/qa/axe-sweep.mjs` samples the whole entrance). What is never an
+artifact is a token that fails at rest.
 
 Audit every `--content-*` token against the surface it names, with the arithmetic
 in `runner.md`. Real numbers from this starter's palette:
@@ -168,5 +172,14 @@ Levers, in order of what they cost you:
   then pays for it in the frame the section appears in.
 - **Dropping image `quality` globally** — decode cost tracks pixel count far more
   than file size. Serve correct `sizes` instead.
-- **Chasing 100.** Green is ≥ 90. The last few points are usually an audit
-  artifact, and the time is better spent on the profile that is actually failing.
+- **Chasing Performance 100.** ≥ 90 is the bar. (Accessibility, Best Practices
+  and SEO are different: 100 was reached on every production site this was
+  measured on — chase those.)
+- **`<Suspense>` around sections to split hydration** — nothing suspended; the
+  boundaries hydrated later in one bigger task (TBT 393 → 834 ms).
+- **`startTransition` around a remount that isn't the long task** — read the
+  task's anatomy (`tools/qa/profile.mjs`) first.
+- **Fixing a hydration mismatch to win TBT** — worth fixing (a console error,
+  correctness), but the task is hydration itself; TBT didn't move.
+- **Removing the loader** — rarely the LCP culprit (TBT −20 ms, two profiles
+  worse).

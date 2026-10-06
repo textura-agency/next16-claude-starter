@@ -11,6 +11,10 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
+      // The robot form of `/` is served under `/` by the proxy (`src/proxy.ts`);
+      // its own path is a duplicate and stays out of the index. robots.txt is
+      // evaluated on the requested URL, so `/` is still crawled.
+      disallow: "/robot-view",
     },
     sitemap: `${siteConfig.url}/sitemap.xml`,
     host: siteConfig.url,

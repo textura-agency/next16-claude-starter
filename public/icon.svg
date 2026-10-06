@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- PLACEHOLDER mark — replace with the brand's logomark or monogram (square,
+       reads at 16 px). See obsidian/frontend/seo-metadata.md → "Brand kit". -->
+  <rect width="64" height="64" rx="14" fill="#0a0a0a"/>
+  <circle cx="32" cy="32" r="13" fill="none" stroke="#ededed" stroke-width="6"/>
+</svg>

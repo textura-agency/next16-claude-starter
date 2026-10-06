@@ -1,6 +1,6 @@
 ---
 tags: [workflow, skill, performance, 3d, stable]
-updated: 2026-09-08
+updated: 2026-10-06
 ---
 
 # Workflow — Optimise a 3D Scene (skill)
@@ -47,11 +47,11 @@ text in `.claude/skills/optimize-3d-scene/SKILL.md`; reference code in
 | § | Step | The point |
 |---|------|-----------|
 | 0 | Audit first, on a valid footing | Baseline `renderer.info.render` / `.programs` / `.memory` — or, on a **raw WebGL** scene, the `getContext` hook you install first. Plus the environment rules: production build, fresh server, `waitUntil: "load"`, counted quantities only. |
-| 1 | Never ship the scene to a bot | Crawlers get a static poster, and the `three` chunk is never fetched or evaluated. The poster is for screenshots and the no-WebGL fallback — *not* layout stability. |
+| 1 | Never ship the scene to a bot | The robot form (proxy rewrite, [[seo-aeo]]) gets a still of the scene, and the `three` chunk is never fetched or evaluated. The still is for screenshots and the no-WebGL fallback — *not* layout stability. |
 | 2 | Tier the device at construction, re-read on a real change | One module owns what "mobile" means; DPR, counts, bloom and frame budget all read from it. Held in a mutable slot; a width change or a pointer-media-query flip re-reads it and `retune()` re-applies every tier-derived value without compiling a program ([[decisions-log]] ADR-0023). |
-| 3 | Prewarm **everything** in the loader | Compile, link, upload, allocate *and decode* before handoff — the rule that kills micro-freezes. Also where §1's code-split fights §3, and where the preload-credentials trap bites. |
+| 3 | Prewarm **everything** in the loader | Compile, link, upload, allocate *and decode* before handoff — the rule that kills micro-freezes. Compile **against the composer's real render targets**, with objects **visible**, every post pass run once, one step per `requestAnimationFrame` (not `setTimeout(0)`), one program / upload per task (rule, 6 sites). Also where §1's code-split fights §3, and where the preload-credentials trap bites. |
 | 4 | Render only when visible | Gate on `document.hidden` + in-view + canvas actually visible. Biggest saving on a scroll site. |
-| 5 | Frame budget per tier | 30 fps mobile / 45 tablet / uncapped desktop — measuring ~26 fps, because of how the ticker throttles. |
+| 5 | Frame rate per tier | **No fixed cap on phones** — a `1000/30` budget drew 20 fps at 60 Hz and 26 fps at 120 Hz and read as "very low fps" on an iPhone; lifting it (7 sites) gave 55–120 fps with the phone scroll the same or better. Pay with a cheaper frame. **Desktop:** a GPU-bound scene draws at most every ~12.5 ms (60 fps on 120 Hz panels; rule, 5 sites). Per-frame motion scaled by dt. *Amends the earlier 30/45 fps budgets — ADR-0026.* |
 | 6 | Clamp pixel ratio — **and the composer** | A 3× phone renders 9× the fragments. Clamping the renderer but not `EffectComposer` throws the saving away. |
 | 7 | Cut fill, not detail | Particle counts, bloom, additive overdraw, renderer flags, shadows. On a *baked* point buffer, check ordering before truncating. |
 | 8 | Fewest lights the look survives | One key + IBL; a light-count change recompiles every program. |
@@ -59,7 +59,7 @@ text in `.claude/skills/optimize-3d-scene/SKILL.md`; reference code in
 | 10 | Smooth scroll progress on touch | Low-pass once upstream (`k ≈ 0.22–0.3`), snap on page jumps. |
 | 11 | No cursor interactivity on mobile | Don't attach the listener; gate on "pointer has actually moved". |
 | 12 | Compress assets | Draco geometry (local decoder), KTX2/Basis textures, per-tier size caps. |
-| 13 | The iOS flicker details | Resize listener on **every** tier, ignoring height-only changes on a coarse pointer (the URL bar) — *not* "no resize on touch". **Canvas `lvh` / content `dvh`**, promoted compositor layer, clamped `dt`, dispose on unmount. |
+| 13 | The iOS flicker details | Resize listener on **every** tier, ignoring height-only changes on a coarse pointer (the URL bar) — *not* "no resize on touch"; skip same-size resizes, draw at once on a real one (worker side too). **Canvas `lvh` / content and menus `dvh`**, promoted compositor layer, clamped `dt`, dispose on unmount. **Never stop drawing a visible canvas** (iOS drops the last frame); **recover a lost WebGL context**. Verify with `qa:ios` and `qa:context` — [[mobile-device-qa]]. |
 | 14 | Verify, then write it down | Re-measure §0 on the same footing; program count must be **stable after the loader**. |
 
 > [!warning] The three traps that cost the most time in the field
@@ -79,20 +79,44 @@ text in `.claude/skills/optimize-3d-scene/SKILL.md`; reference code in
 >    and drew skewed. Fixed 2026-09-08 (ADR-0023): listen everywhere, skip
 >    height-only changes on a coarse pointer, retune on a tier change.
 
+## What production taught (read before §3–§7)
+
+Measured on the scene-carrying sites among 50+ built from this starter — details
+and evidence in [[fix-catalog]] §2, §5 and §9:
+
+- **Geometry math off the main thread** (a module Worker; rule, 5 sites — mobile
+  TBT 4,269 → 207 ms once), and **the whole scene in an OffscreenCanvas worker**
+  on phones/tablets, started **after `load`**, clock in seconds like the page
+  path, state posted only on change (rule, 4 sites). Not on desktop — it cost the
+  desktop scroll.
+- **DPR per tier, renderer and composer** (desktop ≤ 1.5); cut passes not looks
+  (transmission at half resolution, shadow maps updated every other frame, empty
+  composers deleted).
+- **Models compressed** (WebP textures, Draco geometry, per-tier sizes:
+  `gltf-transform resize → webp → draco`); downloads started at first paint, not
+  in `<head>`; three.js `import()`ed after first paint, never re-exported from a
+  barrel, drei only inside the lazy scene.
+- **A below-the-fold scene mounts on idle after load**, not on proximity (its
+  setup otherwise lands in the scroll); never defer *preloads* to the first scroll.
+- **The phone is the judge**: no instrument here sees a phone's GPU, Safari's
+  toolbar or a 120 Hz display. `qa:fps`, `qa:ios`, `qa:context`, `qa:webkit`, then
+  a real device — [[mobile-device-qa]].
+
 ## Mapping onto this starter
 
-The skill's canonical implementations live in a separate workspace
-(`getlayers-projects/` — `helion`, `mycelia`, `stride`, `clarix`) and are **not
-part of this repo**. Several of them already have an equivalent here — use the
-local one rather than porting a second copy:
+The starter ships no `three`, but it ships the dependency-free scene helpers the
+fixes above need. Use the local one rather than writing a second copy:
 
 | Skill pattern | Use in this project |
 |---|---|
 | one shared rAF for the whole page (§4) | `subscribeToTicker` — `src/lib/animation/ticker.ts`, per-subscriber throttling built in ([[decisions-log]] ADR-0009). Also serves §5's frame budget. |
-| bot detection (§1) | `isBot()` — `src/utils/is-bot.ts`, already used for the SEO path ([[seo-metadata]], ADR-0010). |
+| bot detection (§1) | The robot form — `src/proxy.ts` rewrites bot UAs (`src/utils/bot-ua.ts`) to a static `/robot-view`; `useMotionOff()` (`src/hooks/use-motion-off.ts`) tells a component it is on the robot form or under reduced motion. Never `await isBot()` in a page — it makes `/` dynamic ([[seo-aeo]]). |
 | scroll progress source (§9, §10) | The Lenis scroll store — [[smooth-scroll]]. Read it once per frame inside the ticker; never in a scroll handler that also writes styles. |
 | in-view gating (§4) | `useDynamicInView` / `useInViewRef` — [[hooks]]. Give the observer a ~1 viewport `rootMargin` so the scene is warm on arrival. |
-| viewport sizing (§13) | `heightLvh` / `minHeightLvh` — `src/utils/lvh.ts` — for the **canvas**, so a collapsing URL bar never re-allocates the framebuffer. Lay the **content** out in `dvh` instead, or the bottom of the page hides behind that same URL bar. Canvas `lvh`, content `dvh`. |
+| viewport sizing (§13) | `src/utils/stable-viewport.ts` + `src/components/common/scene-viewport.tsx` — the scene box at the large viewport, re-measured on touch only on a width change (also `heightLvh` in `src/utils/lvh.ts`). Lay **content and menus** out in `dvh`, or their bottom hides behind the URL bar. Canvas `lvh`, content `dvh`. |
+| per-frame time (§5, §13) | `src/lib/scene/per-frame.ts` — dt helpers: `+= k * dt * 60`, exponential easing by dt, one clock in seconds. |
+| context loss (§13) | `src/lib/scene/webgl-context.ts` — `webglcontextlost` handling and rebuild-on-return. |
+| gyroscope (optional) | `src/lib/scene/device-tilt.ts` — phones only, permission on a tap, off for robots and reduced motion. A design choice — show it to the client. |
 | device tiering (§2) | **Not in the starter.** Add `src/lib/scene/device.ts` when a project needs it, and document it in [[utils]]. |
 
 ## How it sits with the hard rules
@@ -128,5 +152,7 @@ Per §14 and the [[ai-agent-guide]] rules, in the same turn:
 - [[animation-system]] — the ticker and spring primitives the scene shares
 - [[smooth-scroll]] — the scroll source a scroll-driven scene reads
 - [[seo-metadata]] — the bot path §1 hangs off
+- [[fix-catalog]] · [[pitfalls]] · [[testing-pipeline]] · [[mobile-device-qa]]
 - [[decisions-log]] ADR-0009 (shared ticker), ADR-0010 (SEO/perf hardening),
-  ADR-0016 (this registration)
+  ADR-0016 (this registration), ADR-0023 (resize on every tier), ADR-0026 (lessons
+  from production sites; phone caps removed)

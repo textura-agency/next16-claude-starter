@@ -1,6 +1,6 @@
 ---
 tags: [frontend, stable]
-updated: 2026-05-21
+updated: 2026-10-06
 ---
 
 # Catalog — Common Components
@@ -17,7 +17,8 @@ category **preferences modal**. No third-party library (the old
 | File | Role |
 |------|------|
 | `Cookie.tsx` | Mount component — hydrates the store, renders banner + modal |
-| `LazyCookie.tsx` | `next/dynamic` `ssr:false` wrapper — keeps cookie JS out of first-load |
+| `LazyCookie.tsx` | Client wrapper — **static import** (server-rendered banner) + the robot-form gate (layout effect on `isRobotView()`) |
+| `consent-flag.ts` | `CONSENT_STORAGE_KEY` + `CONSENT_FLAG_SCRIPT` — no `"use client"`, so the server layout inlines the string |
 | `CookieBanner.tsx` | Bottom-right consent banner |
 | `CookiePreferencesModal.tsx` | Category preferences dialog with per-category toggles |
 | `CookieButton.tsx` | Local button primitive — `primary` / `secondary` variants |
@@ -29,10 +30,31 @@ category **preferences modal**. No third-party library (the old
 import { LazyCookie } from "@/components/common/Cookie";
 ```
 
-**State** — `useCookieStore` (Zustand). `consent` is `null` until the user decides;
-the banner shows only after hydration confirms `consent === null`. Persisted to
-`localStorage` under key `cookie-consent-v1`. Three categories: `necessary`
-(always on), `analytics`, `marketing`.
+**Server-rendered — it is the phone's LCP element.** At phone width the
+banner's paragraph is the largest text on screen. It used to mount client-only
+(`dynamic({ ssr: false })`), so LCP waited for hydration — on every production
+site measured (mobile 53 → 74, LCP 11.0 → 2.3 s on the cleanest A/B; *rule*,
+10+ sites). Now:
+
+1. `CookieBanner` renders in the server HTML, **at rest** (`useTransition({ initial: null })`),
+   shown until hydration reads a stored choice (`!hydrated || consent === null`),
+   marked `data-cookie-banner`.
+2. `CONSENT_FLAG_SCRIPT` — the root layout's **first** `<body>` child — sets
+   `<html data-consent>` when a choice is stored, before the banner is parsed
+   (`<html suppressHydrationWarning>` tolerates the mark).
+3. `globals.css` hides `[data-cookie-banner]` under `html[data-consent]` and on
+   the robot form (`html:has(meta[name="x-robot-view"])`) — a returning visitor
+   never sees it flash.
+
+Check after any change: first visit shows it, Accept removes it, a reload has
+it `display: none` at DOMContentLoaded, no console errors. Never hold it behind
+an intro (`AfterPreload`-style gates): that is the LCP again, and changing when
+consent is asked is a client decision.
+
+**State** — `useCookieStore` (Zustand). `consent` is `null` until the user decides.
+Persisted to `localStorage` under `CONSENT_STORAGE_KEY` (`cookie-consent-v1`).
+Three categories: `necessary` (always on), `analytics`, `marketing`. ("Accept
+all" used to save every category **off** — the same as "Reject all"; fixed.)
 
 **Styling & motion** — ported to the project stack: Tailwind v4 with the
 `background` / `foreground` design tokens (dark-mode adaptive, no hardcoded hex),
@@ -42,8 +64,11 @@ The modal locks scroll through the Lenis [[smooth-scroll|scroll store]]
 (`useScroll.stop()`), not `body` overflow.
 
 > [!note] `#todo`
-> The privacy-policy link points to `/privacy-policy` — that route does not exist
-> yet. Placeholder consent copy should be reviewed before launch.
+> The privacy-policy link points to `/privacy-policy`, which ships as a
+> boilerplate route (`src/views/legal/`, copy in `src/data/mocks/legal.ts`,
+> flagged `TODO(legal)`). Say what the site really collects and have counsel
+> review it — and the consent copy — before launch. Never delete the link to
+> dodge the 404: the consent flow promises that page.
 
 ## Grid — adaptive scaling (`grid/`)
 
@@ -88,6 +113,23 @@ It watches the `prefers-reduced-motion` media query and toggles react-spring's
 global `skipAnimation`, so every spring — and `spring-text-engine` — jumps to its
 end state instead of animating. Renders `null`; mounted once in the root layout.
 See [[animation-system]] and [[seo-metadata]].
+
+## Robot form — `robot-view.tsx`, `robot-*.tsx`
+
+`RobotProvider` / `useRobot()` / `<RobotView/>` / `isRobotView()` and the
+resting twins of the engine's primitives (`robot-spring`, `robot-inview`,
+`robot-hover`, `robot-text`). Full note: [[robot-form]].
+
+## Origin sync — `origin-sync.ts`
+
+`originSyncScript(siteConfig.url)` — inlined by the root layout; after
+hydration it points canonical / share URLs at `location.origin` when the page
+is served from a host other than the built one. See [[seo-metadata]] → Origin.
+
+## Scene viewport — `scene-viewport.tsx`
+
+`<SceneViewport>` — the fixed full-bleed box for a canvas, at the large
+viewport height, deaf to the iOS toolbar. See [[webgl-scenes]].
 
 ## Skeleton loaders
 

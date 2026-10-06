@@ -25,6 +25,19 @@ consistency of facts about an entity across the whole web.
   executing JavaScript than Googlebot. Anything client-rendered may be invisible
   to them. In this starter, content is server-rendered and animations only
   animate — keep it that way.
+- **AI crawlers get the robot form.** `src/utils/bot-ua.ts` lists them next to
+  the search engines, so the proxy serves them the page at rest (no intro, every
+  line of copy in the HTML). The starter's original list knew search engines and
+  lab tools but not AI crawlers — they got the people form, where streamed copy
+  sat in `hidden` segments. When a new AI crawler appears, add it there (one
+  regex for the proxy and `isBot()`).
+- **Read the page as they do** — no JS:
+  `curl -s -A "GPTBot/1.0" <url>/` (and `ClaudeBot`, `PerplexityBot`). The `<h1>`
+  and body copy must be present and **not under a `hidden` ancestor**. On
+  production sites built from the old starter an empty `app/loading.tsx` put the
+  whole page inside `<div hidden>`; after deleting it, two sites went from h1
+  HIDDEN and 394 / 1,619 hidden characters to **0**. Text a client-only scene
+  paints into a canvas doesn't exist for them — keep an HTML twin.
 
 ## 2. `llms.txt`
 
@@ -63,7 +76,9 @@ Keep it factual and short. It is a summary for a machine, not a marketing page.
 
 Answer engines assemble a picture of the brand from many sources. Contradictions
 dilute it. Keep the name, description, founding year, location and offering
-identical across: the site, `Organization` JSON-LD, `llms.txt`, LinkedIn,
+identical across — starting with the site's own `siteConfig` (title, OG,
+manifest, JSON-LD must all carry the brand as its logo writes it, never a
+starter placeholder) — the site, `Organization` JSON-LD, `llms.txt`, LinkedIn,
 Crunchbase, G2, Google Business Profile, and any press coverage.
 
 ## 5. Audit current visibility

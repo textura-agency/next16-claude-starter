@@ -127,6 +127,16 @@ re-inject context on every turn. That bought-clean code costs tokens.
 | `yarn build` | Production build |
 | `yarn start` | Serve the production build |
 | `yarn lint` | ESLint |
+| `yarn verify` | Mechanical rule check (`.claude/scripts/verify.sh`) |
+| `yarn qa:setup` | One-time: installs the testing tools' browsers and libraries into `~/.cache/next16-qa` (the project gains no dependency) |
+| `yarn qa:lh` / `qa:scroll` / `qa:axe` / `qa:motion` | Lighthouse (PC + mobile, people + robot form), the real-Chrome scroll test, the accessibility sweep, the reduced-motion / crawler check — all take `--url` of a running `yarn start` |
+| `yarn qa:ios` / `qa:fps` / `qa:context` / `qa:webkit` | Phone probes for pages with a canvas: Safari's toolbar resize, the scene's real frame rate, WebGL context loss, an iPhone profile in WebKit |
+| `yarn qa:brand` | Favicon set + 1200×630 share image from your logo mark |
+
+The bar the tools check: Performance ≥ 90 on PC and mobile, Accessibility /
+Best Practices / SEO 100, scroll with no frame over 50 ms. The order to run
+them in is [`obsidian/workflows/testing-pipeline.md`](./obsidian/workflows/testing-pipeline.md);
+each tool is described in [`tools/qa/README.md`](./tools/qa/README.md).
 
 ## 🚀 Deploy to Vercel
 
@@ -143,6 +153,12 @@ Or from the dashboard: open [vercel.com/new](https://vercel.com/new), import
 the GitHub repo you created in step 3, accept the defaults — the Next.js
 preset auto-configures the build, output, and image optimisation. No
 `vercel.json` required.
+
+**Before the first production deploy, fill in `src/lib/site.ts`.** It ships
+`TODO:` placeholders on purpose: every build warns, and a Vercel production
+build fails until the site's name, description and brand assets are real (no
+"New Project" metadata goes live by accident). The canonical origin falls back
+to Vercel's production domain when `NEXT_PUBLIC_SITE_URL` is unset.
 
 When you add environment variables (e.g. `NEXT_PUBLIC_SITE_URL`, see
 [`obsidian/architecture/environment-variables.md`](./obsidian/architecture/environment-variables.md)),

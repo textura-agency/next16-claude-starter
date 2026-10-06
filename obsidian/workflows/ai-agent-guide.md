@@ -1,6 +1,6 @@
 ---
 tags: [workflow, ai, stable]
-updated: 2026-09-18
+updated: 2026-10-06
 ---
 
 # AI Agent Guide
@@ -65,6 +65,20 @@ consistent with it.
    after any UI change. Zero FAILs, or say explicitly what you left and why.
    See [[qa-verification]].
 
+> [!important] Two habits from 50+ production sites
+> - **Read [[knowledge/README|the knowledge]] before optimising.** [[fix-catalog]]
+>   holds every fix that moved a measured number on a site built from this
+>   starter; [[pitfalls]] holds every way the measurement lied. Try *rule*
+>   entries first; add what you learn by the evidence rules there.
+> - **Check on a real phone before calling it done.** Lighthouse, the scroll test
+>   and the probes all passed on sites where a person's iPhone then found a
+>   flickering scene, a 26 fps cap or a menu under Safari's toolbar. Run the
+>   `mobile-device-qa` skill ([[mobile-device-qa]]); if no device is available,
+>   say so in the report.
+>
+> The bars: Performance ≥ 90 on PC and mobile; Accessibility, Best Practices,
+> SEO 100 (people and robot form); scroll ideal — [[testing-pipeline]].
+
 ## Where to look
 
 | Question | Note |
@@ -78,6 +92,9 @@ consistent with it.
 | Lighthouse / Core Web Vitals / "get it in the green"? | [[optimize-load]] |
 | The site feels slow / janky / stutters on scroll? | [[optimize-performance]] |
 | The 3D scene lags / needs optimising? | [[optimize-3d-scene]] |
+| What already worked on other sites? What misled people? | [[fix-catalog]] · [[pitfalls]] |
+| In what order do I test, and what are the bars? | [[testing-pipeline]] |
+| Something looks wrong on a phone / iOS? | [[mobile-device-qa]] |
 | How do I check my work? | [[qa-verification]] |
 | A Figma design needs building | [[figma-to-code]] |
 | Content needs to be editable | [[cms-payload]] |
@@ -93,6 +110,8 @@ consistent with it.
 - New dependency → update [[tech-stack]] + [[changelog]].
 - Architectural choice → add an ADR to [[decisions-log]].
 - New component/hook/util → document it in the relevant catalog note.
+- A fix that moved a measured number, or a trap that cost time →
+  [[fix-catalog]] / [[pitfalls]] ([[knowledge/README]] for the evidence rules).
 
 ## The execution layer (`.claude/`)
 
@@ -100,17 +119,22 @@ Full map: [[agent-harness]]. Skills, rules, agents and commands are **registered
 this vault** so the routing is discoverable to any agent or human reading the docs.
 
 **Commands** — `/new-page` · `/section` · `/qa` · `/ship` · `/cms` · `/db` ·
-`/seo` · `/migrate-site` · `/perf` · `/load`
+`/seo` · `/migrate-site` · `/perf` · `/load` · `/mobile`
 
 **Skills** — `qa-verify`, `figma-to-section`, `payload-cms`, `supabase-db`,
 `supabase-auth`, `seo-audit`, `schema-markup`, `aeo-visibility`, `site-migration`,
-`ship-check`, `optimize-load`, `optimize-performance`, `optimize-3d-scene`
+`ship-check`, `optimize-load`, `optimize-performance`, `optimize-3d-scene`,
+`mobile-device-qa`
+
+**Tools** — `tools/qa/` (`yarn qa:*`): Lighthouse, the scroll test, the iOS /
+fps / context-loss / WebKit probes, the axe sweep, resize and motion checks, the
+brand kit — [[testing-pipeline]].
 
 **Agents** — `section-builder`, `motion-reviewer`, `vault-librarian`, `seo-auditor`
 
 **Rules** (`.claude/rules/`) auto-load when a matching file is read: `motion.md`,
 `design-tokens.md`, `routing-views.md`, `api-env.md`, `engine-protected.md`,
-`payload.md`, `supabase.md`.
+`payload.md`, `supabase.md`, `scenes.md`, `seo-robot.md`, `menus.md`.
 
 > [!warning] Rules fire on **read**, not write
 > A path-scoped rule enters context when Claude reads a matching file — not when

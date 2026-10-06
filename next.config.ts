@@ -23,6 +23,11 @@ const nextConfig: NextConfig = {
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
   },
 
+  // Browser source maps only for a profiling build (`QA_SOURCEMAPS=1 yarn build`),
+  // so `tools/qa/profile.mjs` can name the source file behind a long task.
+  // Never on a normal build — they would ship the source to every visitor.
+  productionBrowserSourceMaps: process.env.QA_SOURCEMAPS === "1",
+
   // React Compiler (automatic memoisation) is an opt-in performance win.
   // It requires the `babel-plugin-react-compiler` dev dependency and routes
   // the build through Babel — enable once installed:

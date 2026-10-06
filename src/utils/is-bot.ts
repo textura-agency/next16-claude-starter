@@ -1,19 +1,17 @@
 import { headers } from "next/headers";
 
-// Detect if the user agent is a bot (Lighthouse, Googlebot, etc.)
+import { isBotUserAgent } from "@/utils/bot-ua";
+
+/**
+ * Whether the request comes from a crawler or a lab tool (Lighthouse, …).
+ *
+ * ⚠️ Reading `headers()` makes the calling route **dynamic** — rendered per
+ * request, `cache-control: private, no-store`, no CDN cache — for every
+ * visitor. Never `await isBot()` in a page, view or layout: the proxy already
+ * routes robots to the robot form (`src/proxy.ts`, obsidian/frontend/robot-form.md).
+ * Use this only in route handlers that are dynamic anyway.
+ */
 export const isBot = async (): Promise<boolean> => {
   const headersList = await headers();
-  const userAgent = headersList.get("user-agent") || "";
-  const ua = userAgent.toLowerCase();
-  return (
-    ua.includes("lighthouse") ||
-    ua.includes("googlebot") ||
-    ua.includes("pagespeed") ||
-    ua.includes("chrome-lighthouse") ||
-    ua.includes("headlesschrome") ||
-    ua.includes("gtmetrix") ||
-    ua.includes("pingdom") ||
-    ua.includes("bingbot") ||
-    ua.includes("yandexbot")
-  );
+  return isBotUserAgent(headersList.get("user-agent"));
 };

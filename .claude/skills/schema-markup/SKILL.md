@@ -21,6 +21,18 @@ once in the root layout. **Extend that helper.** Do not scatter inline
 4. Values come from `siteConfig` (`src/lib/site.ts`) and from the page's own
    props — never hardcoded a second time.
 5. Validate: the JSON parses, required properties are present, URLs are absolute.
+6. **No placeholder names.** The graph reads `siteConfig.name` — on sites built
+   from the old starter the JSON-LD `Organization` said "New Project" while
+   Lighthouse still scored SEO 100. `logo` points at the brand mark
+   (`/icon-512.png` from the brand kit, or the logo file), never the starter's
+   icon; `sameAs` lists only profiles the site actually links.
+7. **The robot form carries the same graph.** Crawlers get `/robot-view` under
+   `/` (`optimize-load/references/robot-path.md`); render JSON-LD from the root
+   layout or the view so both forms emit it, and diff the two:
+   `curl -s -A "Googlebot/2.1" <url>/ | grep -c 'application/ld+json'` equals
+   the people count.
+8. Absolute URLs come from `siteConfig.url`, which is the build-time origin —
+   check the deployed graph names the real domain, not `localhost`.
 
 ## Types worth adding, by page kind
 

@@ -1,6 +1,6 @@
 ---
 tags: [frontend, scroll, stable]
-updated: 2026-05-21
+updated: 2026-10-06
 ---
 
 # Smooth Scroll — Lenis
@@ -50,6 +50,24 @@ const [start, stop] = useScroll(useShallow((s) => [s.start, s.stop]));
 | `setLenis` | fn | setter (used by `ScrollController`) |
 | `isEnableScroll` | `boolean` | is scrolling allowed |
 | `start()` / `stop()` | fn | toggle scroll (e.g. lock when a modal opens) |
+
+## One-screen pages, menus, modals — `useScrollLock`
+
+Lenis drives the scroll position itself, so **`body { overflow: hidden }` does
+not stop the wheel** on a Lenis page: a one-screen design could be wheeled
+~140 px on a fresh desktop load (*observed*, 1 site — check every one-screen
+layout: wheel on a fresh load, `scrollY` must stay 0). Lock through the store:
+
+```tsx
+import { useScrollLock } from "@/hooks/use-scroll-lock";
+
+useScrollLock(isOneScreenLayout, { toTop: true }); // a one-screen layout
+useScrollLock(menuOpen);                            // an open menu / modal
+```
+
+It calls `stop()` / `start()`, which stop Lenis and lock native scroll
+together. The store is a single flag — two lockers open at once release each
+other; keep one owner per moment (the cookie modal already uses it).
 
 ## Programmatic scrolling
 

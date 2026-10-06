@@ -1,5 +1,10 @@
 # The measurement harness
 
+> **The standing tool is `node tools/qa/scroll-test.mjs --url …`** (PC wheel +
+> mobile touch at 4× CPU and 4G, cold then warm, every frame > 50 ms named with
+> its section and cause — `tools/qa/README.md`). This bench is for tracing a
+> freeze the tool has already located.
+
 A scroll bench that drives **real Chrome** with **real wheel events** and reports
 the cold scroll against the warm one. Nothing else surfaces the first-visit
 penalty this starter is prone to.

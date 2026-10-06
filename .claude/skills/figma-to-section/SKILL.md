@@ -90,6 +90,17 @@ Follow `obsidian/workflows/new-page.md`. Specific to design work:
 - Content comes in as props (mocks under `src/data/mocks/<page>.ts` until real
   data or the CMS exists) — never hardcoded in the component.
 - Semantic markup and the correct `tag` on every animation component.
+- **First-screen sections use the robot twins** (`robot-spring`, `robot-text`,
+  `robot-inview`, `robot-hover` in `src/components/common/`) so crawlers get the
+  copy at rest; below-fold text engines take `lazy`; every `loop:` reads
+  `useMotionOff()` (`optimize-load/references/robot-path.md`).
+- **Phone frames are layouts, not coordinates.** Build the phone design in flow
+  (flex/grid, a page gutter token) — absolutely positioning every element from a
+  390-wide frame made a later "1rem side padding" request a 30-file change on a
+  production site. Split-letter headlines group letters per word
+  (`white-space: nowrap`) so they never break mid-word; check
+  `scrollWidth === innerWidth` at 320–430. Scene boxes are `lvh`, menus `dvh` +
+  safe area (`mobile-device-qa`).
 
 ## 6. Finish
 

@@ -1,6 +1,6 @@
 ---
 tags: [frontend, animation, stable, do-not-modify]
-updated: 2026-07-17
+updated: 2026-10-06
 ---
 
 # Animation System
@@ -115,8 +115,65 @@ export const springsConfig = {
 `isMobileDisabled(value, viewportWidth?)` checks the viewport against `mobileWidth`.
 Pass a React-tracked width (e.g. from `useWindowWidth()`) as the second argument so
 the check re-evaluates on resize; it falls back to `window.innerWidth` when omitted.
+A tracked width of **0** (the server snapshot `useWindowWidth()` returns during
+hydration) answers `false`, like the server — it used to fall back to
+`window.innerWidth`, so on a phone a render that hid an element differed from
+the server HTML (React #418, the whole root re-rendered: a 453 ms task on a
+production site). The real width arrives on the next render. In your own
+components, only let `isMobileDisabled` decide **markup** with a tracked width;
+in effects and handlers either form is fine.
 Components opt in per-instance via `disableOnMobile`. **Never disable animation
 globally** — toggle per component when an animation hurts mobile UX.
+
+## Loops and motion off — the freeze
+
+Reduced motion (`<ReducedMotion>`) and the robot form ([[robot-form]]) both
+switch on react-spring's global `skipAnimation`. Under it a **looping spring**
+finishes each lap in 0 ms and starts the next in the same tick, forever — the
+page hangs. Seen live on 6+ production sites (frozen on load or on hover for
+reduced-motion visitors; Lighthouse `PAGE_HUNG` on the robot form; at best
+~300 ms of main thread per load). *Rule.*
+
+```tsx
+import { useMotionOff } from "@/hooks/use-motion-off";
+
+const motionOff = useMotionOff();
+const pulse = useSpring({ from: { o: 0.4 }, to: { o: 1 }, loop: !motionOff });
+```
+
+- `useMotionOff()` is correct on the **first** render (it reads the media
+  query in a state initialiser) — react-spring's `useReducedMotion()` alone is a
+  render too late: the loop has already started.
+- The same applies to `while (alive) { await api.start(…) }` loops — stop the
+  loop when `motionOff`, and wait on a timer between laps.
+- Test with reduced motion emulated and on the robot form: the page must stay
+  responsive (`page.evaluate(() => 1)` returns).
+
+## `<Spring mode="once">` fed by an in-view flag replays
+
+`Spring`'s `active` returns `false` on `!enabled` **before** it checks `once`,
+so `<Spring mode="once" enabled={inView}>` hides again when it leaves the
+viewport and replays on return. Latch in the caller (never in the engine):
+
+```tsx
+const [seen, setSeen] = useState(false);
+useEffect(() => { if (inView) setSeen(true); }, [inView]);
+<Spring mode="once" enabled={seen} …>
+```
+
+`<Inview mode="once">` tracks its own observer and is fine.
+
+## Per-frame work outside the engine
+
+Hand-written rAF loops, canvas and WebGL: scale every step by the frame's
+duration in seconds (`src/lib/scene/per-frame.ts`), never a fixed phone frame
+cap, write per-frame styles only on change and on the smallest element (a CSS
+variable on `<html>` written every frame restyled 571 elements, 10–22 ms per
+frame on a phone). See [[webgl-scenes]].
+
+The ticker's per-subscriber `framerate` is a **minimum gap** between calls — a
+budget throttle. A `framerate` of `1000 / 30` draws ~20 fps on a 60 Hz screen;
+don't use it to cap a visible scene.
 
 ## Underlying hooks
 
@@ -125,4 +182,4 @@ The components are built on `src/hooks/animation/` — also `#do-not-modify`. Se
 
 ## Related
 
-[[text-engine]] · [[components/animation-springs]] · [[data-flow]] · [[new-page]]
+[[text-engine]] · [[components/animation-springs]] · [[robot-form]] · [[webgl-scenes]] · [[data-flow]] · [[new-page]]

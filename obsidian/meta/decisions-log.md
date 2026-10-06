@@ -1,6 +1,6 @@
 ---
 tags: [meta, decision]
-updated: 2026-09-18
+updated: 2026-10-06
 ---
 
 # Decisions Log (ADRs)
@@ -14,6 +14,81 @@ decisions on top, continuing the numbering. Amending an inherited decision is
 fine; write a new ADR that says so rather than editing the old one.
 
 Template: [[templates/adr-note]].
+
+---
+
+## ADR-0026 — The starter inherits lessons from many production sites
+
+**Status:** Accepted · 2026-10-06 · amends ADR-0025 (the bars) and the frame
+budgets in [[optimize-3d-scene]] §5 (ADR-0016's registration)
+
+**Context.** More than fifty animation-heavy marketing sites were built from this
+starter and then measured, optimised and reviewed one by one: Lighthouse on the
+real host, a real-Chrome scroll test on PC and mobile, and finally a person on an
+iPhone. Three things came out of it. (1) A **catalogue of fixes with measured
+evidence** — and of measurements that lied. (2) A list of **defects the starter
+itself seeded into every site**: a client-only consent banner that was the mobile
+LCP element on all of them, an empty `loading.tsx` hiding the page from non-JS
+crawlers, a localhost canonical, looping springs that froze the page for
+reduced-motion visitors, a missing privacy route, 900 × 600 share images.
+(3) A **class of phone defects no instrument saw** — Safari's toolbar resizing
+scenes, 30 fps caps drawing 20–26 fps, motion 2–4× too fast at 120 Hz, lost WebGL
+contexts, menus under the toolbar or unreadable in dark mode — found on 26 sites by
+a person's phone after every number said "done". None of it was in the starter:
+the next project would have relearned all of it.
+
+**Decision.** The starter carries that knowledge in four places:
+
+- **What** — `obsidian/knowledge/`: [[fix-catalog]] (symptom · cause · fix ·
+  evidence · *rule*/*observed*), [[pitfalls]], and [[knowledge/README]] with the
+  evidence rules. Generic: techniques and numbers, no client names.
+- **How** — `obsidian/workflows/`: [[testing-pipeline]] (the order and the bars)
+  and [[mobile-device-qa]]; the optimisation workflows updated to the evolved
+  practice. The skills (`optimize-*`, the new `mobile-device-qa`) carry the
+  procedures, and `tools/qa/` the instruments — standalone, `--url`-driven, their
+  dependencies in a cache directory outside the project so the starter gains
+  none.
+- **Where in code** — the seeded defects fixed in `src/` and the reusable helpers
+  shipped as starter modules (robot form, origin, stable viewport, per-frame dt,
+  context recovery, device tilt); see the frontend notes. The fix-catalog's last
+  section lists them as defaults not to undo.
+- **The bars** — Performance **≥ 90 on PC and mobile** (people runs, real host);
+  Accessibility, Best Practices, SEO **100** on both, people runs **and** the robot
+  form; the scroll test **ideal** on both (no frame > 50 ms, ≤ 1 % dropped, p99 ≤
+  33 ms, cold and warm); and a check on a real phone. PC and mobile are the
+  record; tablet is for digging.
+
+**Why.**
+
+- **Evidence over advice.** Every entry carries a before → after and a site count.
+  A rule is something that reproduced on three sites; a one-site observation is
+  marked as such and has, more than once, failed to transfer (counter-cases are
+  recorded). This is the same discipline as ADR-0024/0025, kept as the way new
+  entries get in.
+- **Fixing upstream stops the next fifty.** A defect that sat in every site cost a
+  pass per site; fixed in the starter it costs nothing.
+- **The phone is the judge.** The most expensive lesson was that a page can pass
+  Lighthouse ≥ 90, A11y 100 and an ideal scroll test and still look broken on an
+  iPhone. Hence a dedicated skill and workflow, probes for the known classes
+  (toolbar, fps, context loss, WebKit), and a device walk as the last gate — with
+  "not checked on a device" stated in any report that skipped it.
+- **Phone frame caps are removed.** ADR-0016's scene workflow budgeted 30 fps on
+  phones. On seven sites the cap drew 20–26 fps and read as broken; lifting it
+  gave 55–120 fps with the phone scroll test the same or better. Pay for
+  smoothness with a cheaper frame. (A desktop 60 fps *draw* cap for GPU-bound
+  scenes is a separate measured rule.)
+
+**Consequences.**
+
+- Read [[fix-catalog]] and [[pitfalls]] before optimising; add to them by the
+  evidence rules; promote a rule into its skill and workflow in the same change.
+- The ship gate ([[ship]]) uses the new bars and ends on a real device.
+- A change that reverts a listed starter default re-measures first.
+- Projects cut from this starter keep their own entries; an entry that recurs in
+  three projects is worth proposing upstream.
+
+**Related.** [[knowledge/README]] · [[testing-pipeline]] · [[mobile-device-qa]] ·
+[[changelog]]
 
 ---
 

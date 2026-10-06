@@ -1,15 +1,17 @@
 # Patterns — copy-paste implementations
 
-Every block here is either lifted from a project in this workspace or is the
-generalised form of one. Ported from `helion` / `mycelia` (the optimised
-descendants of `helios`) and `stride`. Adapt the framework glue; keep the
-reasoning comments — they are why the numbers are what they are.
+Every block here is lifted from an optimised production scene, or is the
+generalised form of one. Adapt the framework glue; keep the reasoning comments —
+they are why the numbers are what they are. Where this starter already ships a
+module (`src/lib/scene/per-frame.ts`, `webgl-context.ts`, `device-tilt.ts`,
+`src/utils/stable-viewport.ts`), use the module; these blocks are for scenes
+that need the shape in their own class.
 
 ---
 
 ## 1. `lib/scene/device.ts` — the single source of tiering
 
-Source: `helion/src/lib/scene/device.ts` (fullest version), `mycelia/src/lib/scene/device.ts`.
+Source: the fullest of several production `device.ts` files.
 
 ```ts
 export type DeviceTier = "mobile" | "tablet" | "desktop";
@@ -40,26 +42,29 @@ export const deviceTier = (): DeviceTier => {
   return "desktop";
 };
 
-/** Below 1.0 on mobile: these scenes are decorative, fill-bound, and the sprites
- *  are soft — rendering at 0.85× and letting the browser upscale is invisible and
- *  cuts ~a third of the fragments. Raise to 1.0 for hard-edged geometry (warp
- *  streaks, thin lines, in-shader text), which aliases visibly. */
-const MOBILE_MAX_DPR = 0.85;
+/** Phones: 1.0 for soft point clouds, up to 1.5 (+ MSAA) for a model, hard
+ *  edges or in-shader text. Below 1.0 two production heroes read as
+ *  "noisy" on an iPhone; 1.5 + MSAA fixed it with performance held.
+ *  Desktop ≤ 1.5 even on 2× panels. */
+const MOBILE_MAX_DPR = 1.5;
 
 export const clampedPixelRatio = (tier: DeviceTier = deviceTier()): number => {
   if (typeof window === "undefined") return 1;
   const dpr = window.devicePixelRatio || 1;
-  if (tier === "mobile") return Math.min(dpr, MOBILE_MAX_DPR);
-  return Math.min(Math.max(dpr, 0.75), 1.5);
+  if (tier === "mobile") return Math.min(Math.max(dpr, 1), MOBILE_MAX_DPR);
+  return Math.min(Math.max(dpr, 1), 1.5);
 };
 
-/** Minimum ms between scene frames. 30fps on a phone is the single biggest win
- *  available: the scene is fill-bound, not motion-bound. Throttled per ticker
- *  subscriber, so this never slows the springs sharing the loop. */
+/** Minimum ms between scene DRAWS. NOT a phone cap: a `1000/30` budget drew
+ *  20 fps on 60 Hz and 26 fps on a 120 Hz iPhone and read as "very low fps"
+ *  (rule, 5+ sites) — and it tripped one scene's fps→DPR fallback into a noisy
+ *  0.75. Phones draw every tick and pay with a cheaper frame. Desktop gates the
+ *  draw at 60 fps so a 120 Hz panel doesn't double the GPU work (rule, 6 sites);
+ *  12.5 ms sits between a 120 Hz and a 60 Hz tick, so a 60 Hz screen never
+ *  skips. Gate the draw only — per-tick easing keeps stepping. */
 export const frameBudgetMs = (tier: DeviceTier = deviceTier()): number => {
-  if (tier === "mobile") return 1000 / 30;
-  if (tier === "tablet") return 1000 / 45;
-  return 0; // desktop: every rAF tick
+  if (tier === "desktop") return 12.5;
+  return 0; // phones and tablets: every rAF tick
 };
 
 export const prefersReducedMotion = (): boolean =>
@@ -83,8 +88,11 @@ export const isEnergySaver = (): boolean => {
   return false;
 };
 
-/** Play the entrance once, then stop drawing on a settled frame. WebGL keeps the
- *  last frame on the canvas, so a frozen scene costs nothing on scroll or idle. */
+/** Play the entrance once, then stop ADVANCING TIME on a settled frame. Do not
+ *  stop drawing while the canvas is visible: iOS drops the last frame after a
+ *  toolbar resize / re-composite and a stopped scene never repaints (the hero
+ *  "disappears"). Redraw the settled frame on resize, visibility return and
+ *  context restore. */
 export const sceneShouldFreeze = (tier: DeviceTier = deviceTier()): boolean =>
   prefersReducedMotion() || (tier === "mobile" && isEnergySaver());
 
@@ -109,7 +117,7 @@ export const byTier = <T,>(tier: DeviceTier, values: Record<DeviceTier, T>): T =
 
 ## 2. One shared rAF for the whole page
 
-Source: `helion/src/lib/animation/ticker.ts`.
+Source: a production page ticker.
 
 ```ts
 export type TickerCallback = (time: number) => void;
@@ -327,7 +335,7 @@ material.uniforms.uOpacity.value = progress > 0.5 ? 1 : 0;
 
 ## 4. Visibility-gated render loop
 
-### Plain / vanilla — `stride/src/lib/three/chain-scene.ts`
+### Plain / vanilla — a class-based scene
 
 ```ts
 // Three WebGL scenes each running their own forever-rAF was the main cause of
@@ -365,7 +373,7 @@ document.addEventListener("visibilitychange", () => {
 });
 ```
 
-### Scroll-range test — `helion/src/lib/scene/scroll-state.ts`
+### Scroll-range test — `scroll-state.ts`
 
 ```ts
 /** Is the scene worth drawing this frame? A hidden tab paints nothing; below the
@@ -382,7 +390,7 @@ export const isSceneVisible = (): boolean => {
 };
 ```
 
-### The React leaf that wires it together — `helion/.../scene/scene.tsx`
+### The React leaf that wires it together — `scene.tsx`
 
 ```tsx
 useEffect(() => {
@@ -394,10 +402,16 @@ useEffect(() => {
   let frozen = false;
   let settleStart = 0;
 
+  // Settled ≠ not drawing. iOS drops a visible canvas's last frame after a
+  // toolbar resize or re-composite; a scene that stopped drawing never repaints
+  // (a production hero "disappeared"). Frozen = time stops; a resize, a
+  // visibility return or a context restore sets `needsRedraw` and we draw once.
   const unsubscribeTicker = subscribeToTicker(
     (time) => {
-      if (frozen || !isSceneVisible()) return;
-      animation.render(time);
+      if (!isSceneVisible()) return;
+      if (frozen && !animation.needsRedraw) return;
+      animation.needsRedraw = false;
+      animation.render(frozen ? animation.settledTime : time);
       // Reduced-motion / energy-saver: keep drawing until the loader hands off
       // plus a short settle window, so we freeze on a fully-formed frame.
       if (freeze && loadedRef.current) {
@@ -432,10 +446,12 @@ useEffect(() => {
 
 ## 5. Canvas sizing that survives the iOS URL bar
 
-Source: `mycelia/src/lib/scene/canvas3d.ts`.
+Source: a production `canvas3d.ts`, corrected. The starter's
+`src/utils/stable-viewport.ts` + `scene-viewport.tsx` are the box-level form of
+the same rule; use them for any React-sized scene box.
 
 ```ts
-/* The resize path runs on EVERY tier. `mycelia` attaches no listener at all on
+/* The resize path runs on EVERY tier. An earlier version attached no listener at all on
  * touch to dodge the iOS URL bar (Safari fires `resize` each time the bar
  * collapses during scroll, and rebuilding the framebuffer mid-scroll reads as a
  * full-scene flicker). That over-corrects: a viewport that really changes — a
@@ -542,13 +558,13 @@ this.renderer.shadowMap.enabled = false; // VSM on mobile is the most expensive 
 
 ## 6. Scroll smoothing on touch
 
-Source: `helion/src/components/common/sections/section-controller.tsx`.
+Source: a production section controller.
 
 ```ts
 /** Lerp factor for mobile scroll smoothing. Retention 0.75 ⇒ k = 0.25 — the same
  *  number said two ways. Higher = snappier and less laggy; lower = smoother but
  *  the scene visibly trails your thumb. 0.08 (≈135 ms half-life) felt disconnected
- *  once the scene ran at 30 fps, because the two lags compound. 0.22 (≈28 ms) still
+ *  once a frame cap was stacked on top, because the two lags compound. 0.22 (≈28 ms) still
  *  absorbs the discrete jumps of native momentum scrolling while tracking the thumb. */
 const SMOOTH_LERP = 0.22;
 /** Lenis eases the wheel, but the scene reads scrollY raw each frame, so steppy
@@ -585,7 +601,7 @@ const tick = (time: number) => {
 
 ## 7. Pointer, gated
 
-Source: `helion/src/lib/scene/mouse.ts`, `mycelia/.../objects/vortex.ts`.
+Source: production pointer modules.
 
 ```ts
 let mouse: MouseEvent | null = null;
@@ -625,7 +641,7 @@ this.pointer.y = lerp(this.pointer.y, target.y, 0.09);
 
 ## 8. Per-tier counts
 
-Source: `mycelia/src/components/common/scene/three/objects/vortex.ts`.
+Source: a production particle vortex.
 
 ```ts
 /**
@@ -683,8 +699,7 @@ every k-th point or a Poisson thin), shipped as a per-tier asset like any other.
 
 ## 9. Bloom / composer
 
-Source: `helion/src/components/common/scene/three/Composer.ts`,
-`mycelia/.../Composer.ts`.
+Source: production composers.
 
 ```ts
 // The composer owns its OWN render targets. Leaving it at raw devicePixelRatio
@@ -711,8 +726,8 @@ render() {
 }
 ```
 
-**Audit dead chains.** Both `mycelia` and `helion` inherited three chained
-composers from `helios` where two rendered empty layers and the final pass
+**Audit dead chains.** Two production scenes inherited three chained
+composers where two rendered empty layers and the final pass
 sampled stale render targets plus an unbound `sampler2D` (which reads texture
 unit 0 — whatever was last bound, so the composite changed frame to frame). That
 was simultaneously the flicker *and* two wasted full-screen passes per frame.
@@ -723,7 +738,7 @@ every intermediate chain sets `renderToScreen = false`.
 
 ## 10. Scroll transforms in the vertex shader
 
-The correct shape already exists in `clarix/3d-website/main.js` (logo particles):
+The correct shape (logo particles in a production scene):
 per-particle data in attributes, one `uProgress` uniform, all interpolation on
 the GPU.
 
@@ -764,7 +779,7 @@ points.frustumCulled = false;
 Reuse scratch objects; never allocate in the loop:
 
 ```ts
-const _v = new THREE.Vector3();          // module scope — `clarix` does this with _revealVec
+const _v = new THREE.Vector3();          // module scope — reuse, never allocate per frame
 function tick() {
   model.getWorldPosition(_v).project(camera);   // no per-frame allocation, no GC stall
 }
@@ -781,7 +796,7 @@ group.position.z = -scroll * DIVE;       // one matrix update
 
 ## 11. Lights and environment
 
-Source: `stride/src/lib/three/chain-scene.ts`.
+Source: a production class-based scene.
 
 ```ts
 // One key light + an IBL replaces three or four fills and looks better than any
@@ -798,7 +813,7 @@ scene.add(key);
 ```
 
 Fake the rim in-shader instead of adding a light — a few ALU ops, reads as a
-light (`clarix` already computes this fresnel; it just also ships three real
+light (one scene computed this fresnel and still shipped three real
 lights on top of it):
 
 ```glsl
@@ -817,7 +832,7 @@ npx @gltf-transform/cli optimize in.glb out.glb \
 ```
 
 ```ts
-// Keep the decoder LOCAL. `clarix` fetches it from gstatic — a CDN round-trip on
+// Keep the decoder LOCAL. Fetching it from gstatic is a CDN round-trip on
 // the critical path, and a third-party dependency for a first-paint asset.
 const draco = new DRACOLoader().setDecoderPath("/draco/");
 const ktx2 = new KTX2Loader()
@@ -844,46 +859,38 @@ texture.anisotropy = deviceTier() === "mobile" ? 1 : renderer.capabilities.getMa
 
 ## 13. Bot exclusion
 
-Source: `helion/src/utils/is-bot.ts`.
-
-```ts
-import { headers } from "next/headers";
-
-export const isBot = async (): Promise<boolean> => {
-  const ua = ((await headers()).get("user-agent") || "").toLowerCase();
-  return (
-    ua.includes("lighthouse") || ua.includes("googlebot") ||
-    ua.includes("pagespeed") || ua.includes("chrome-lighthouse") ||
-    ua.includes("headlesschrome") || ua.includes("gtmetrix") ||
-    ua.includes("pingdom") || ua.includes("bingbot") || ua.includes("yandexbot")
-  );
-};
-```
+**In this starter the UA check lives in the proxy** — `src/proxy.ts` +
+`src/utils/bot-ua.ts` rewrite a bot on `/` to `/robot-view`, a prerendered route
+whose view gets `robot`. Every route stays static; the scene's module is never
+in the robot form's chunk graph. (`optimize-load/references/robot-path.md`.)
 
 ```tsx
-// Server component. The bot path never references the scene module, so `three`
-// is not in the chunk graph it downloads — no fetch, no parse, no script
-// evaluation time, which is exactly what the audit is measuring.
+// src/views/home.tsx — the view decides scene vs still from its `robot` prop,
+// never by reading headers. `await isBot()` in a page reads `headers()` and makes
+// the route dynamic for every visitor (no CDN cache) — the defect the old
+// starter seeded into most of the sites it was used for.
 const Scene = dynamic(() => import("@/components/common/scene/scene"), { ssr: false });
 
-export default async function Page() {
-  const bot = await isBot();
-  return (
-    <>
-      {bot ? <ScenePoster /> : <Scene />}
-      <Content />
-    </>
-  );
-}
+export const HomeView = ({ robot = false }: { robot?: boolean }) => (
+  <RobotProvider robot={robot}>
+    {robot && <RobotView />}
+    {robot ? <SceneStill /> : <Scene />}
+    <Content />
+  </RobotProvider>
+);
 ```
 
-Plain-HTML projects (the `portable.html` / template shape) — same idea, client-side:
+`SceneStill` is a capture of the running canvas
+(`node tools/qa/capture-still.mjs --url …`), desktop and phone crops in a
+`<picture>`.
+
+Plain-HTML pages (no proxy) — the same idea, client-side:
 
 ```html
 <canvas id="scene"></canvas>
 <img id="scene-poster" src="poster.webp" alt="" />
 <script type="module">
-  const BOTS = /lighthouse|googlebot|pagespeed|headlesschrome|bingbot|yandexbot/i;
+  const BOTS = /lighthouse|googlebot|pagespeed|headlesschrome|bingbot|yandexbot|gptbot|oai-searchbot|claudebot|perplexitybot/i;
   if (!BOTS.test(navigator.userAgent)) {
     // three.js is only fetched and evaluated here.
     const { mountScene } = await import("./scene.js");
@@ -1023,9 +1030,10 @@ console.log(await page.evaluate(() => ({
    meaningless (14 fps measured on a desktop). Only *counted* quantities
    transfer: draws, vertices, buffer pixels, listener counts, link timestamps,
    block duration.
-5. **To see a frame cap (§5), remove the GPU as the limiter**: shrink the
-   viewport to ~320×240 and re-measure. rAF at 120/s against 26 draws/s is the
-   cap working.
+5. **To see a draw gate (§5), remove the GPU as the limiter**: shrink the
+   viewport to ~320×240 and re-measure — or run `tools/qa/fps-probe.mjs`, which
+   counts the scene's draws against the page's rAF. On a phone, draws ≈ rAF/3
+   (60 Hz) or rAF/5 (120 Hz) is a leftover fixed cap: remove it (SKILL §5).
 
 ```js
 // Listener count (§4/§11) — install before app code, same evaluateOnNewDocument.
@@ -1036,3 +1044,73 @@ EventTarget.prototype.addEventListener = function (t, f, o) {
   return add.call(this, t, f, o);
 };
 ```
+
+---
+
+## 16. Frame-rate-independent motion and the desktop draw gate
+
+`src/lib/scene/per-frame.ts` is the starter's clock and easing
+(`createFrameClock`, `perFrame`, `damp`) and the desktop draw gate
+(`createDrawGate(isDesktop)` → `gate.shouldDraw(dt)`, `DESKTOP_DRAW_GATE_MS`).
+The shape it implements, for a scene that owns its loop:
+
+```ts
+let last = 0;
+let sinceDraw = 0;
+const DESKTOP_GATE_MS = 12.5; // between a 120 Hz (8.3) and a 60 Hz (16.7) tick
+
+function tick(nowMs: number) {
+  const dt = Math.min(0.05, last ? (nowMs - last) / 1000 : 1 / 60); // seconds, clamped
+  last = nowMs;
+
+  // Easing steps EVERY tick, scaled by dt — never `x += 0.02` per frame:
+  // at 120 Hz that runs 2× fast, 4× with a duplicate loop (a production phone
+  // scene ran "2–4× too fast and shaking").
+  const k = 1 - Math.pow(1 - 0.1, dt * 60);
+  state.cursor.x += (target.x - state.cursor.x) * k;
+  state.time += dt; // ONE clock, in seconds, shared by every path (page + worker)
+
+  // Desktop: gate the DRAW only, at 60 fps. Phones: draw every tick.
+  sinceDraw += dt * 1000;
+  if (tier === "desktop" && sinceDraw < DESKTOP_GATE_MS) return requestAnimationFrame(tick);
+  sinceDraw = 0;
+  render(state);
+  requestAnimationFrame(tick);
+}
+```
+
+Simulate 120 Hz headless to check speed (Lighthouse and the scroll test count
+frames, not speed):
+
+```js
+// page.evaluateOnNewDocument — a 120 Hz rAF
+window.requestAnimationFrame = (cb) => setTimeout(() => cb(performance.now()), 8);
+```
+
+Compare pixel change per 1/60 s at rest against an unpatched 60 Hz run; they
+must match.
+
+## 17. Context-loss recovery (shape)
+
+`src/lib/scene/webgl-context.ts` (`keepSceneAlive`, `watchContext`,
+`releaseContext`) is the starter's form. The contract:
+
+```ts
+canvas.addEventListener("webglcontextlost", (e) => e.preventDefault(), false);
+// On approach (IntersectionObserver, rootMargin ~50%), visibilitychange, pageshow,
+// and any context event while in view:
+function recheck() {
+  if (!scene) return;
+  if (scene.gl.isContextLost() || scene.wasRestored) {
+    if (performance.now() - lastRebuild < 1000 || retries >= 3) return;
+    scene.dispose();                 // renderer.dispose() + forceContextLoss()
+    scene = mountScene(canvasHost, { settled: true }); // fresh canvas, at rest — no intro replay
+    lastRebuild = performance.now(); retries++;
+    return;
+  }
+  scene.resizeIfStale();             // a needless setSize clears the buffer
+}
+```
+
+Proof: `node tools/qa/context-loss-probe.mjs --url …` forces
+`WEBGL_lose_context` off screen, scrolls back and asserts draws.

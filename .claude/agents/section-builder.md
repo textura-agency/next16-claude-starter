@@ -24,10 +24,21 @@ tokens, routes delegate to views).
    Typed `interface ...Props`, named export, under ~150 lines, semantic markup.
 4. **Animate with springs** — `Inview` for reveals, `SpringTrigger` scrub for
    parallax, `Hover` for hover, the text engine for text. Semantic `tag`, never
-   `div`. No CSS keyframes, no other library.
+   `div`. No CSS keyframes, no other library. In a first-screen section import
+   the robot twins (`@/components/common/robot-spring`, `robot-text`,
+   `robot-inview`, `robot-hover`) so crawlers get the copy at rest; below-fold
+   text engines take `lazy`; every `loop:` reads `useMotionOff()`. Blur once per
+   line, never per letter; reveal first-screen copy by transform/clip with
+   opacity 1 (axe samples fades mid-way); per-frame motion scaled by `dt`.
 5. **Content via props.** Mocks in `src/data/mocks/` if there is no real data.
-6. **Verify**: `.claude/scripts/verify.sh` plus the judgement checks in
-   `qa-verify`. Fix what you find, then re-run.
+6. **Phone**: the phone frame built in flow (never every element absolutely
+   positioned from a 390-wide frame), split headlines grouped per word
+   (`white-space: nowrap`), `scrollWidth === innerWidth` at 320–430, scene boxes
+   `lvh` and overlays `dvh` + safe area (`mobile-device-qa`).
+7. **Verify**: `.claude/scripts/verify.sh` plus the judgement checks in
+   `qa-verify` (on a running build: `tools/qa/axe-sweep.mjs`,
+   `tools/qa/resize-check.mjs`, `tools/qa/check-motion.mjs`). Fix what you find,
+   then re-run.
 
 ## Report back
 

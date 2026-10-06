@@ -74,7 +74,11 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  /* `safe center`: a page taller than the viewport starts at the top instead of
+     being centred past the scroll origin (a long page — a privacy policy — lost
+     its back link and title above the top edge with plain `center`). One-screen
+     pages and the 404 stay centred. */
+  justify-content: safe center;
   height: 100vh;
   width: 100vw;
 }
@@ -119,4 +123,13 @@ body {
 }
 
 @layer components {
+}
+
+/* The consent banner is server-rendered (it paints with the page — it is the
+   phone's LCP element). Hidden before paint for a visitor who already chose
+   (`Cookie/consent-flag.ts`) and on the robot form, which has no visitor to
+   ask. Outside any layer and selector list on purpose. */
+html[data-consent] [data-cookie-banner],
+html:has(meta[name="x-robot-view"]) [data-cookie-banner] {
+  display: none;
 }

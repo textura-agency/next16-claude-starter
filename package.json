@@ -7,7 +7,21 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "qa:setup": "node tools/qa/setup.mjs",
+    "qa:lh": "node tools/qa/lighthouse.mjs",
+    "qa:scroll": "node tools/qa/scroll-test.mjs",
+    "qa:profile": "node tools/qa/profile.mjs",
+    "qa:ios": "node tools/qa/ios-toolbar-probe.mjs",
+    "qa:fps": "node tools/qa/fps-probe.mjs",
+    "qa:context": "node tools/qa/context-loss-probe.mjs",
+    "qa:axe": "node tools/qa/axe-sweep.mjs",
+    "qa:resize": "node tools/qa/resize-check.mjs",
+    "qa:motion": "node tools/qa/check-motion.mjs",
+    "qa:still": "node tools/qa/capture-still.mjs",
+    "qa:brand": "node tools/qa/brand-kit.mjs",
+    "qa:webkit": "node tools/qa/webkit-probe.mjs",
+    "verify": "bash .claude/scripts/verify.sh"
   },
   "dependencies": {
     "@react-spring/web": "^10.1.2",

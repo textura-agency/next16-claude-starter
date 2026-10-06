@@ -1,6 +1,6 @@
 ---
 tags: [frontend, stable]
-updated: 2026-05-21
+updated: 2026-10-06
 ---
 
 # Catalog — Hooks
@@ -33,6 +33,8 @@ components — don't call them directly unless extending the engine.
 | Hook | File | Role |
 |------|------|------|
 | `useWindowWidth` / `useWindowHeight` / `useWindowSize` | `use-window-size.ts` | SSR-safe window dimensions — all three share **one** debounced (300 ms) `resize` listener via a `useSyncExternalStore` store |
+| `useMotionOff` | `use-motion-off.ts` | `true` under reduced motion **or** on the robot form, correct on the first render. Every looping spring reads it (`loop: !motionOff`) — see [[animation-system]] → Loops |
+| `useScrollLock` | `use-scroll-lock.ts` | Locks the page (Lenis + native) while a flag is true — one-screen layouts, menus, modals. See [[smooth-scroll]] |
 | `useAdaptiveGrid` | `use-adaptive-grid.ts` | Scales the root `<html>` font-size up while the viewport exceeds `baseWidth` — powers `<AdaptiveGrid>`, see [[components/common]] |
 
 > [!note] Shared render loop

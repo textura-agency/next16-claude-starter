@@ -1,6 +1,6 @@
 ---
 tags: [meta, changelog]
-updated: 2026-09-30
+updated: 2026-10-06
 ---
 
 # Changelog
@@ -36,6 +36,39 @@ The home view (`src/views/home.tsx`, route `/`) ships empty on purpose — start
 there ([[new-page]]).
 
 <!-- Log this project's changes below, newest first, under a `## YYYY-MM-DD` heading. -->
+
+## 2026-10-06 — The starter inherits lessons from many production sites
+
+What 50+ production sites built from this starter taught — measured, optimised
+and reviewed on real phones — is now part of the starter. Reasoning:
+[[decisions-log]] ADR-0026.
+
+- **New `knowledge/` section.** [[fix-catalog]] — every fix that moved a measured
+  number, by area (LCP/load, hydration/TBT, CLS, scroll, 3D/WebGL, fonts/media,
+  accessibility, SEO/robots/metadata, phones/iOS), each with symptom, cause, fix,
+  before → after and *rule* (≥ 3 sites) or *observed* (1–2) status; it ends with
+  the starter defaults that must not be undone. [[pitfalls]] — measurement,
+  tooling, code and design-to-code traps. [[knowledge/README]] — how to use them
+  and the evidence rules for adding to them; [[templates/fix-entry]].
+- **New workflows.** [[testing-pipeline]] — build → `next start` → Lighthouse ×3
+  PC + mobile (people + robot form) → scroll test PC + mobile (cold + warm) →
+  mobile/iOS probes → axe sweep → real host → real device, with the bars:
+  Performance ≥ 90 on PC and mobile, A11y/BP/SEO 100, scroll ideal (no frame
+  > 50 ms). [[mobile-device-qa]] — the companion to the new `mobile-device-qa`
+  skill (`/mobile`): Safari's toolbar resize, 120 Hz and dt, no phone frame caps,
+  WebGL context loss, menus (dvh + safe area + dark mode), touch, gyroscope,
+  loader and first scroll, stills, WebKit, the device walk.
+- **Workflows updated** to the evolved practice and linked to the knowledge:
+  [[optimize-load]] (the bars, the levers in the order they pay),
+  [[optimize-performance]] (the scroll test's cause column → fix table),
+  [[optimize-3d-scene]] (§3 prewarm against real targets; §5 **no fixed phone
+  cap** + desktop 60 fps draw cap — replaces the 30/45 fps budgets; §13 never stop
+  a visible canvas, context recovery; the starter's new scene helpers),
+  [[qa-verification]] (layers 3 and 4: the `tools/qa/` checks and a real phone),
+  [[seo-aeo]] (robot form, origin, empty `loading.tsx`, SEO 100 hiding real
+  defects), [[ship]] (the new budget and post-deploy checks), [[new-page]]
+  (build-it-fast defaults), [[ai-agent-guide]] and [[agent-harness]] (the new
+  skill, command and `tools/qa/` scripts).
 
 ## 2026-09-30 — Dependency refresh: Next 16.3.7, React 19.3
 

@@ -1,15 +1,23 @@
 ---
 tags: [workflow, performance, seo, accessibility, stable]
-updated: 2026-09-18
+updated: 2026-10-06
 ---
 
 # Getting a page into the green
 
-Lighthouse across laptop, tablet and mobile — all four categories — then fix what
-the audit blames and prove it. Skill: `optimize-load`. Command: `/load`.
-Hard rule 13. ADR: [[decisions-log]] ADR-0025.
+Lighthouse on PC and mobile — all four categories, people runs **and** the robot
+form — then fix what the audit blames and prove it. Skill: `optimize-load`.
+Command: `/load`. Hard rule 13. ADRs: [[decisions-log]] ADR-0025, ADR-0026.
 
-**Green is ≥ 90, not 100.**
+**The bar** (from 50+ production sites — [[testing-pipeline]]): Performance
+**≥ 90 on PC and on mobile** (green is ≥ 90, not 100); Accessibility, Best
+Practices and SEO **100** on both, in people runs and on the robot form. PC and
+mobile are the record; tablet is for digging.
+
+> [!tip] Read before you start
+> [[fix-catalog]] §1–3 and §6–8 hold every load fix that moved a number on a
+> production site, with evidence; [[pitfalls]] §1 holds every way the
+> measurement lied. Most first passes are already written down there.
 
 ## Which skill
 
@@ -26,13 +34,14 @@ visit and neither substitutes for the other.
 
 ## The loop
 
-Build → audit all three profiles → attribute → fix one thing → re-audit.
+Build → audit PC + mobile, people + robot → attribute → fix one thing → re-audit
+→ confirm on the real host.
 
 | step | rule |
 |---|---|
 | 1. Build | audit `yarn build && yarn start`, never `next dev` |
 | 2. Baseline | before touching anything, tagged, kept to diff against |
-| 3. Repeat | **median of 3+ runs per profile** |
+| 3. Repeat | **median of 3+ runs per profile**; A/B back to back, interleaved, the machine's load noted |
 | 4. Attribute | read the phase breakdown before changing code |
 | 5. Fix one thing | re-measure under the identical config |
 | 6. Report | the full grid, and what you did not fix and why |
@@ -56,6 +65,37 @@ in the skill's `references/runner.md`:
   caused a regression — a late animation that used to fall outside the
   observation window now falls inside it. Verify with the probe, which watches as
   long as you tell it to.
+
+## The levers, in the order they usually pay
+
+Measured on 50+ sites; details and evidence in [[fix-catalog]].
+
+1. **The LCP waits on a loader, curtain or entrance** → serve the LCP copy at rest
+   under the opaque curtain, switch to the start state after a reported paint,
+   replay the entrance (rule). The consent banner as LCP → it is server-rendered
+   in the starter; keep it that way.
+2. **Raw-path media** — anything that fetches `public/` by path (`new Image()`,
+   CSS `url()`, preloads, `<picture>`) → warm the `getImageProps` candidate (rule;
+   hosted LCP 31 → 3.7 s once).
+3. **Hydration TBT** → text engines below the fold mount near the viewport; one
+   clock per text effect instead of a spring per letter; no hover springs on
+   touch; the curtain-lift's entrances in their own tasks; heavy blocks hydrate
+   one per idle moment (all rules — cut the work per block before splitting).
+4. **3D at load** → geometry in a Worker; the whole scene in an OffscreenCanvas
+   worker on phones, after load; prewarm every program against the real targets;
+   compressed models; three.js out of the first load ([[optimize-3d-scene]]).
+5. **Bytes on the first screen** → Latin WOFF2 font subsets, self-hosted font
+   CSS, `experimental.inlineCss`, video encoded by role (H.264, never HEVC), zod
+   out of the client.
+6. **A11y 100 in people runs** → run `yarn qa:axe` first: a first-screen
+   opacity fade is sampled mid-way — reveal with a mask/clip sweep at opacity 1;
+   real failures → repoint the text token; decorative text as generated content.
+7. **Best Practices** → every linked route exists (a prefetched `<Link>` to a
+   missing page is a console 404).
+
+Two traps to know before reading any report: Lighthouse's long-task times are
+**simulated** (map them by the observed trace), and **localhost LCP is not the
+host's** — the record is the deployed preview ([[pitfalls]] §1).
 
 ## Two findings worth carrying between projects
 
@@ -90,19 +130,24 @@ attached is a good outcome; a silently altered brand moment is not.
 | | |
 |---|---|
 | the loop, in order | `.claude/skills/optimize-load/SKILL.md` |
+| the testing order and the bars | [[testing-pipeline]] |
+| measured fixes · what misled people | [[fix-catalog]] · [[pitfalls]] |
+| the tools (`qa:lh`, `qa:axe`, `profile.mjs`) | `tools/qa/README.md` |
 | the Lighthouse runner, the CLS probe, contrast maths | `…/references/runner.md` |
 | fixes by weight | `…/references/fixes.md` |
 
-Both scripts install into a scratch directory — deliberately **not** project
-dependencies.
+The tools install into a cache directory outside the project — deliberately
+**not** project dependencies.
 
 ## Closing the loop
 
 `yarn lint` · `yarn build` · `.claude/scripts/verify.sh` (zero FAILs) · the
 `qa-verify` skill if any UI changed — a contrast fix changes how the page looks,
 and a token change touches every surface. Log the measured grid in [[changelog]],
-and add an ADR for anything that sets a new rule or accepts a known cost.
+and add an ADR for anything that sets a new rule or accepts a known cost. A fix
+that moved a number belongs in [[fix-catalog]] ([[knowledge/README]] has the
+evidence rules). Then check the page on a phone — [[mobile-device-qa]].
 
 ## Related
 
-[[optimize-performance]] · [[optimize-3d-scene]] · [[seo-aeo]] · [[ship]] · [[design-system]] · [[qa-verification]]
+[[testing-pipeline]] · [[fix-catalog]] · [[pitfalls]] · [[optimize-performance]] · [[optimize-3d-scene]] · [[mobile-device-qa]] · [[seo-aeo]] · [[ship]] · [[design-system]] · [[qa-verification]]

@@ -1,5 +1,11 @@
 # The runner
 
+> **The standing tool is `node tools/qa/lighthouse.mjs --url …`** (people;
+> `--as-bot` for the robot form; mobile + desktop, medians; `--ab <url>` for an
+> interleaved A/B — `tools/qa/README.md`). This file is the
+> raw recipe behind it, for digging into one audit, plus the CLS probe the tool
+> doesn't replace.
+
 Two scripts. The first audits all four categories across the three form factors
 and reports medians. The second names the elements that shift, which Lighthouse
 will not tell you.

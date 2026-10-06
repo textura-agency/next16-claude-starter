@@ -1,6 +1,6 @@
 ---
 tags: [frontend, stable]
-updated: 2026-05-21
+updated: 2026-10-06
 ---
 
 # Routing
@@ -36,6 +36,8 @@ here on route `/` (see [[ai-agent-guide]] / [[new-page]]).
 | Route | File | View |
 |-------|------|------|
 | `/` | `src/app/page.tsx` | `views/home.tsx` → `HomeView` |
+| `/robot-view` | `src/app/robot-view/page.tsx` | `HomeView robot` — reached only via the proxy's rewrite of `/` for robots ([[robot-form]]) |
+| `/privacy-policy` | `src/app/privacy-policy/page.tsx` | `views/legal/` → `PrivacyPolicyView` (boilerplate, `TODO(legal)`) |
 
 ## Special files
 
@@ -44,12 +46,13 @@ here on route `/` (see [[ai-agent-guide]] / [[new-page]]).
 | File | Role |
 |------|------|
 | `layout.tsx` | Root layout — provider tree, font, `metadata` + `viewport`, JSON-LD |
-| `loading.tsx` | Suspense fallback — its presence enables streaming |
+| ~~`loading.tsx`~~ | **Deliberately absent.** Even one that returns `null` wraps the route in Suspense; the server streams the page into `<div hidden>`, and crawlers that don't run JS read nothing. Add one per route only with a real skeleton, then re-curl as a bot |
+| `manifest.ts` | `/manifest.webmanifest` from `siteConfig` |
 | `error.tsx` | Route-segment error boundary (Client Component) |
 | `not-found.tsx` | 404 page — served with a 404 status |
 | `robots.ts` / `sitemap.ts` | Generate `/robots.txt` and `/sitemap.xml` — see [[seo-metadata]] |
 | `api/<resource>/route.ts` | API endpoints (Route Handlers) — see [[api-architecture]] |
-| `src/proxy.ts` | **Replaces `middleware.ts`** — see below. Not present by default. |
+| `src/proxy.ts` | **Replaces `middleware.ts`** — see below. Ships with the robot-form rewrite (`matcher: ["/", "/robot-view"]`). |
 
 ## `middleware.ts` is gone — it is `proxy.ts`
 
@@ -58,6 +61,10 @@ Next.js 16 renamed it: the file is `proxy.ts` and the exported function is
 configured. This is exactly the kind of breaking change `AGENTS.md` warns about —
 training data will confidently write `middleware.ts`, and
 `.claude/scripts/verify.sh` FAILs if it finds one.
+
+The starter's proxy reads the user agent and rewrites robots on `/` to
+`/robot-view` — that is how a route can serve robots differently **and stay
+static**: never read `headers()` in a page for it. See [[robot-form]].
 
 Keep it thin, per Next's own guidance: routing, rewrites, redirects, and cheap
 cookie checks. Not authorisation — that belongs in the data layer (for Supabase,

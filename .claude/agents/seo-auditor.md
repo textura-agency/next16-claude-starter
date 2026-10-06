@@ -16,16 +16,27 @@ performance and AI citability.
 
 1. **Indexability** — anything preventing crawling or indexing outranks
    everything else. Check `robots.ts`, `sitemap.ts` coverage against the actual
-   routes, canonical URLs, and `NEXT_PUBLIC_SITE_URL`.
-2. **Metadata completeness** — unique title/description per route, OG resolving
-   absolutely.
-3. **Content structure** — one `<h1>`, real heading hierarchy, answer-first copy,
+   routes, canonical URLs on the serving origin (deployed canonical = the real
+   domain; `curl -sI` the `og:image` → 200), `NEXT_PUBLIC_SITE_URL`, routes still
+   static (no `headers()` / `await isBot()` in a page).
+2. **The robot form** — `curl -A "Googlebot/2.1"` and `-A "GPTBot/1.0"` get the
+   page at rest (`<meta name="x-robot-view">`), the same title/canonical/`<h1>`
+   as people, no copy under a `hidden` ancestor, every loop gated
+   (`optimize-load/references/robot-path.md`).
+3. **Metadata completeness** — no `TODO:` placeholder in `src/lib/site.ts`; the
+   brand as its logo writes it; unique title/description per route; a real
+   brand kit (favicon set from the site's mark, a 1200×630 share image you looked
+   at — `tools/qa/brand-kit.mjs`); no invented Twitter handle; every `href`
+   resolves (nav items for unbuilt pages → `#`).
+4. **Content structure** — one `<h1>`, real heading hierarchy, answer-first copy,
    descriptive internal links, alt text.
-4. **Structured data** — `Organization` + `WebSite` minimum, page-appropriate
+5. **Structured data** — `Organization` + `WebSite` minimum, page-appropriate
    types beyond that, all validating.
-5. **Performance** — measured, not guessed; mobile profile.
-6. **AEO** — llms.txt, crawler policy (ask the user before changing it),
-   entity consistency.
+6. **Performance** — measured, not guessed: `node tools/qa/lighthouse.mjs
+   --url …` (people; `--as-bot` for the robot form; mobile + desktop, medians); the bar is SEO/BP/A11y
+   100 and perf ≥ 90. Hand fixes to `optimize-load`.
+7. **AEO** — llms.txt, crawler policy (ask the user before changing it), AI
+   crawlers in `src/utils/bot-ua.ts`, entity consistency.
 
 ## Rules
 

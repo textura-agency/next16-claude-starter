@@ -15,13 +15,18 @@ export const CookieBanner = () => {
   const rejectAll = useCookieStore((s) => s.rejectAll);
   const openModal = useCookieStore((s) => s.openModal);
 
-  // Banner shows only after hydration confirmed no prior consent. Hidden while
-  // the preferences modal is up so the two surfaces never compete for focus.
-  const shouldShow = hydrated && consent === null && !modalOpen;
+  // Server-rendered and shown until hydration reads a prior choice, so it paints
+  // with the page (it is the phone's LCP element) — a returning visitor's copy
+  // is hidden before paint by the `data-consent` mark (`consent-flag.ts`).
+  // Hidden while the preferences modal is up so the two surfaces never compete
+  // for focus.
+  const shouldShow = (!hydrated || consent === null) && !modalOpen;
 
   // react-spring keeps the node mounted through the leave animation — no
-  // manual mount/timeout juggling needed.
+  // manual mount/timeout juggling needed. `initial: null`: the served banner is
+  // already at rest; an entrance would start it invisible until hydration.
   const transitions = useTransition(shouldShow, {
+    initial: null,
     from: { opacity: 0, y: 24 },
     enter: { opacity: 1, y: 0 },
     leave: { opacity: 0, y: 24 },
@@ -32,6 +37,7 @@ export const CookieBanner = () => {
     show ? (
       <animated.section
         aria-label="Cookie consent"
+        data-cookie-banner=""
         style={{
           opacity: style.opacity,
           transform: style.y.to((v) => `translateY(${v}px)`),

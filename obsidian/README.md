@@ -1,6 +1,6 @@
 ---
 tags: [moc, home]
-updated: 2026-07-24
+updated: 2026-10-06
 ---
 
 # 🧠 next16-claude-starter — Project Brain
@@ -20,6 +20,14 @@ humans and AI agents (Claude Code, Cursor).
 - [[meta/README|Meta overview]] — how to use and maintain this vault
 - [[changelog]] — log of notable changes to **this** project (starts fresh per project)
 - [[decisions-log]] — Architecture Decision Records: why the conventions are what they are
+
+### 00b — Knowledge (what production taught)
+- [[knowledge/README|Knowledge overview]] — how to use it, and how to add to it (evidence before rules)
+- [[fix-catalog]] — every fix that moved a measured number on 50+ sites built from this starter, by area
+- [[pitfalls]] — measurement, tooling, code and design-to-code traps that cost real time
+
+> [!tip] Before optimising anything, read [[fix-catalog]] and [[pitfalls]]. Before
+> calling anything done, check it on a real phone — [[mobile-device-qa]].
 
 ### 01 — Architecture
 - [[system-overview]] — the big picture, request lifecycle, mental model
@@ -62,11 +70,14 @@ humans and AI agents (Claude Code, Cursor).
 - [[optimize-load]] — Lighthouse across laptop, tablet and mobile; all four categories into the green
 - [[optimize-performance]] — measure the built page in real Chrome, fix what the numbers blame, prove it
 - [[optimize-3d-scene]] — performance work on a three.js/WebGL scene
+- [[testing-pipeline]] — the testing order and the bars: Lighthouse, scroll test, phone probes, axe, host, device
+- [[mobile-device-qa]] — iOS and phone hardening: what only a real phone shows
 
 ### Templates
 - [[templates/component-note|Component note template]]
 - [[templates/hook-note|Hook note template]]
 - [[templates/adr-note|ADR template]]
+- [[templates/fix-entry|Fix-catalog / pitfall entry template]]
 
 ## 🏷️ Tag legend
 

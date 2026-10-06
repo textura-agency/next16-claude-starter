@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# QA reports (tools/qa) — screenshots, Lighthouse HTML, run JSON
+/reports/
