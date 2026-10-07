@@ -58,7 +58,8 @@ export function CANVAS_PROBE(opts = {}) {
   if (document.documentElement) watch(); else addEventListener("DOMContentLoaded", watch);
 
   const box = (el) => { const r = el.getBoundingClientRect(); return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) }; };
-  const pageBox = (el) => { const r = el.getBoundingClientRect(); return { x: r.x + scrollX, y: r.y + scrollY, w: r.width, h: r.height }; };
+  // Page coordinates in the page's SCROLLER (lib/scroller.mjs, when installed) — an inner-scroller page has scrollY 0 forever.
+  const pageBox = (el) => { const r = el.getBoundingClientRect(); return { x: r.x + scrollX, y: window.__yOf ? window.__yOf(el) : r.y + scrollY, w: r.width, h: r.height }; };
   const overlap = (a, b) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
   const visible = (c) => c.width > 8 || c.__qaOffscreen;
 

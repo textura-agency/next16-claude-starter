@@ -24,6 +24,7 @@ import { dirname, join, resolve } from "node:path";
 import { cli, checkTarget, finish, sleep, PROJECT_ROOT } from "./lib/run.mjs";
 import { launch, UA } from "./lib/chrome.mjs";
 import { regionStats } from "./lib/image.mjs";
+import { installScroller, scrollToSelector } from "./lib/scroller.mjs";
 
 const USAGE = `usage: node tools/qa/capture-still.mjs --url <url> [--save public/assets/<name>] [--device desktop,mobile] [--wait 8000] [--transparent] [--keep <sel>] [--hide <sel>] [--scroll-to <sel>] [--canvas <sel>] [--clip] [--quality 80]`;
 const { o, outDir, rel } = cli("capture-still", USAGE, {
@@ -52,8 +53,15 @@ try {
     await page.setViewport(d);
     // A returning visitor: a consent banner that reads a stored choice stays away.
     await page.evaluateOnNewDocument(() => { try { localStorage.setItem("cookie-consent-v1", "declined"); } catch {} });
+    await installScroller(page);
     await page.goto(o.url, { waitUntil: "load", timeout: 90_000 });
-    if (o["scroll-to"]) await page.evaluate((sel) => document.querySelector(sel)?.scrollIntoView({ block: "center", behavior: "instant" }), o["scroll-to"]);
+    // Through the page's scroller (an inner full-screen div when <html>/<body> are locked).
+    if (o["scroll-to"]) {
+      let sc = await scrollToSelector(page, o["scroll-to"], { block: "center" });
+      for (let i = 0; i < 3 && sc?.error; i++) { await sleep(2000); sc = await scrollToSelector(page, o["scroll-to"], { block: "center" }); }   // a loader may hold the lock
+      if (!sc) throw new Error(`${name}: no "${o["scroll-to"]}" on the page to scroll to`);
+      if (sc.error) throw new Error(`${name}: --scroll-to ${o["scroll-to"]}: ${sc.error}`);
+    }
     await sleep(Number(o.wait));
     if (o.hide) await page.addStyleTag({ content: `${o.hide}{visibility:hidden!important}` });
     const found = await page.evaluate(({ transparent, keep, sel }) => {

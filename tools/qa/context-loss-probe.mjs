@@ -30,6 +30,7 @@ import { join } from "node:path";
 import { cli, checkTarget, finish, sleep } from "./lib/run.mjs";
 import { launch, UA } from "./lib/chrome.mjs";
 import { CANVAS_PROBE } from "./lib/canvas-probe.mjs";
+import { installScroller, zeroScroll } from "./lib/scroller.mjs";
 
 const USAGE = `usage: node tools/qa/context-loss-probe.mjs --url <url> [--sel <canvas selector>] [--cycles 4] [--wait 11000] [--grace 2500]`;
 const { o, outDir, rel } = cli("context-loss-probe", USAGE, {
@@ -46,30 +47,35 @@ await page.setUserAgent(UA.iphone);
 await cdp.send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 3, mobile: true });
 await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
 await page.evaluateOnNewDocument(CANVAS_PROBE, { preserve: true });
+await installScroller(page);
 const logs = [];
 page.on("console", (m) => { if (/error|warn/i.test(m.type())) logs.push(`${m.type()}: ${m.text()}`.slice(0, 200)); });
 page.on("pageerror", (e) => logs.push("pageerror: " + e.message.slice(0, 200)));
 
 const state = () => page.evaluate(async () => {
   const t = __qa.targetInfo();
-  if (!t) return { present: false, scrollY: Math.round(scrollY) };
+  if (!t) return { present: false, scrollY: Math.round(window.__sy()) };
   const draws = await __qa.drawsOver(500);
-  return { present: true, ...t, drawsPer500ms: draws, readback: __qa.readback(), scrollY: Math.round(scrollY) };
+  return { present: true, ...t, drawsPer500ms: draws, readback: __qa.readback(), scrollY: Math.round(window.__sy()) };
 });
-// Stepped, like a finger: 450 px every 40 ms (Lenis follows native scroll).
-const scrollTo = (where) => page.evaluate(async (where) => {
-  const max = document.documentElement.scrollHeight - innerHeight;
-  let goal;
-  if (where === "home") { const t = __qa.target(); goal = t ? Math.max(0, Math.min(max, t.getBoundingClientRect().top + scrollY - 40)) : 0; }
-  else { const b = __qa.targetBox; goal = b && b.y + b.h / 2 > (max + innerHeight) / 2 ? 0 : max; }
-  let guard = 400;
-  while (Math.abs(goal - scrollY) > 2 && guard-- > 0) {
-    const dir = Math.sign(goal - scrollY);
-    scrollTo(0, dir > 0 ? Math.min(goal, scrollY + 450) : Math.max(goal, scrollY - 450));
-    await new Promise((r) => setTimeout(r, 40));
-  }
-  return Math.round(scrollY);
-}, where);
+// Stepped, like a finger: 450 px every 40 ms (Lenis follows native scroll),
+// through the page's scroller (lib/scroller.mjs). "Away" on a long page that
+// does not move is an error: every later "back" would be judged without the
+// scene ever having left the screen.
+const scrollTo = async (where) => {
+  const r = await page.evaluate(async (where) => {
+    window.__scroller(true);
+    const max = window.__max(), from = Math.round(window.__sy());
+    let goal;
+    if (where === "home") { const t = __qa.target(); goal = t ? Math.max(0, Math.min(max, window.__yOf(t) - 40)) : 0; }
+    else { const b = __qa.targetBox; goal = b && b.y + b.h / 2 > (max + window.__vh()) / 2 ? 0 : max; }
+    const y = Math.round(await window.__stepTo(goal, 450, 40));
+    return { from: { y: from, max: Math.round(max), unclaimed: max <= 16 ? window.__unclaimed() : null }, to: { y, max: Math.round(max), scroller: window.__describe() }, goal: Math.round(goal) };
+  }, where);
+  const err = zeroScroll(r.from, r.to, r.goal, where === "away" || Math.abs(r.goal - r.from.y) > 2);
+  if (err && !result.scrollError) { result.scrollError = err; pass = false; console.log(`  ✖ scrolling ${where}: ${err}`); }
+  return r.to.y;
+};
 
 const result = { url: o.url, sel: o.sel || null, steps: [] };
 let pass = true, base;
@@ -159,5 +165,5 @@ result.console = logs.slice(0, 20);
 if (logs.length) console.log(`  console: ${logs.slice(0, 3).join(" | ")}`);
 finish({
   outDir, rel, pass, result: { tool: "context-loss-probe", ...result },
-  summary: pass ? "the scene comes back after every trip away and every context loss" : "the scene does not come back — handle webglcontextlost (preventDefault), and rebuild on a fresh context when it nears the viewport / the tab returns",
+  summary: result.scrollError ? `ERROR: ${result.scrollError}` : pass ? "the scene comes back after every trip away and every context loss" : "the scene does not come back — handle webglcontextlost (preventDefault), and rebuild on a fresh context when it nears the viewport / the tab returns",
 });

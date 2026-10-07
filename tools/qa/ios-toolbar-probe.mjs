@@ -37,6 +37,7 @@ import { cli, checkTarget, finish, sleep } from "./lib/run.mjs";
 import { launch, UA } from "./lib/chrome.mjs";
 import { CANVAS_PROBE, isolate } from "./lib/canvas-probe.mjs";
 import { regionStats } from "./lib/image.mjs";
+import { installScroller, scrollToFraction } from "./lib/scroller.mjs";
 
 const USAGE = `usage: node tools/qa/ios-toolbar-probe.mjs --url <url> [--sel <canvas selector>] [--wait 9000] [--scroll 0.3] [--heights 844,760,844,760,844,700,844] [--rotate 844x390] [--no-isolate]`;
 const { o, outDir, rel } = cli("ios-toolbar-probe", USAGE, {
@@ -57,9 +58,10 @@ await page.setUserAgent(UA.iphone);
 await metrics(W, HEIGHTS[0]);
 await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
 await page.evaluateOnNewDocument(CANVAS_PROBE, { preserve: true });
+await installScroller(page);
 
 const counters = () => page.evaluate(() => ({ resize: __qa.resize, attr: __qa.attr, workerSize: __qa.workerSize }));
-const tinfo = () => page.evaluate(() => ({ t: __qa.targetInfo(), inner: `${innerWidth}x${innerHeight}`, scrollY: Math.round(scrollY) }));
+const tinfo = () => page.evaluate(() => ({ t: __qa.targetInfo(), inner: `${innerWidth}x${innerHeight}`, scrollY: Math.round(window.__sy()) }));
 const delta = (a, b) => Object.fromEntries(Object.keys(b).map((k) => [k, b[k] - a[k]]));
 const shoot = async (name, rect) => {
   if (!o["no-isolate"]) await isolate(page, true, "canvas");
@@ -79,8 +81,11 @@ const result = { url: o.url, sel: o.sel || null, steps: [] };
 try {
   await page.goto(o.url, { waitUntil: "load", timeout: 90_000 });
   await sleep(Number(o.wait));
-  await page.evaluate((f) => window.scrollTo(0, (document.documentElement.scrollHeight - innerHeight) * f), Number(o.scroll));
-  await sleep(1500);
+  // Through the page's scroller (an inner full-screen div when <html>/<body> are locked).
+  const sc = await scrollToFraction(page, Number(o.scroll), { settle: 1500 });
+  result.scroll = sc;
+  if (sc.error) { fail = true; console.log(`  ✖ --scroll ${o.scroll}: ${sc.error}`); }
+  else if (sc.scroller !== "document") console.log(`  · the page scrolls an inner element (${sc.scroller}) — scrolled it to y=${sc.y} of ${sc.max}`);
   const picked = await page.evaluate((sel) => __qa.pick(sel), o.sel || null);
   if (!picked) { console.error(`✖ no canvas matches "${o.sel || "canvas"}" on the page`); await browser.close(); process.exit(2); }
   const all = await page.evaluate(() => __qa.all());
@@ -155,7 +160,7 @@ try {
 }
 finish({
   outDir, rel, pass: !fail, result: { tool: "ios-toolbar-probe", ...result },
-  summary: fail
+  summary: result.scroll?.error ? `ERROR: ${result.scroll.error}` : fail
     ? "the scene reacts to height-only (toolbar) resizes, goes blank or stops drawing — size scene boxes at the large viewport, re-measure on touch devices only on a WIDTH change, skip same-size resizes, draw at once on a real one"
     : "toolbar-height changes leave the scene alone; rotation still resizes it",
 });

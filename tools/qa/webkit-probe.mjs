@@ -37,6 +37,7 @@ import { cli, checkTarget, finish } from "./lib/run.mjs";
 import { playwright } from "./lib/deps.mjs";
 import { CANVAS_PROBE, ISOLATE_CSS } from "./lib/canvas-probe.mjs";
 import { regionStats } from "./lib/image.mjs";
+import { installScroller, scrollState } from "./lib/scroller.mjs";
 
 const USAGE = `usage: node tools/qa/webkit-probe.mjs --url <url> [--device "iPhone 13"] [--iterations 2] [--wait 9000] [--shots] [--faults] [--gpu-kill] [--headed] [--no-isolate]`;
 const { o, outDir, rel } = cli("webkit-probe", USAGE, {
@@ -65,6 +66,9 @@ page.on("pageerror", (e) => logs.push("pageerror: " + e.message.slice(0, 200)));
 page.on("crash", () => { crashed = true; console.log("  ✖ PAGE CRASHED (WebContent process gone)"); });
 
 await page.addInitScript(CANVAS_PROBE, { preserve: true });
+// Every flick, jump and read goes through the page's scroller (lib/scroller.mjs):
+// a page that locks <html>/<body> and scrolls a full-screen div never moves under window.scrollBy.
+await installScroller(page);
 await page.addInitScript(() => {
   // A thumb flick, per frame: velocity v0 (px/ms, + = down) decaying like UIScrollView.
   window.__fling = (v0, { decel = 0.998, reverseAfterMs = 0, v1 = 0 } = {}) => new Promise((resolve) => {
@@ -72,9 +76,9 @@ await page.addInitScript(() => {
     const step = (now) => {
       const dt = Math.min(34, now - last); last = now;
       if (reverseAfterMs && !reversed && now - start > reverseAfterMs) { v = v1; reversed = true; }
-      window.scrollBy(0, v * dt);
+      window.__by(v * dt);
       v *= Math.pow(decel, dt);
-      if (Math.abs(v) > 0.02) requestAnimationFrame(step); else resolve(window.scrollY);
+      if (Math.abs(v) > 0.02) requestAnimationFrame(step); else resolve(window.__sy());
     };
     requestAnimationFrame(step);
   });
@@ -92,7 +96,7 @@ const read = () => guard(page.evaluate(async () => {
     c.draws300 = el ? (el.__qaDraws || 0) - (d0[c.id] || 0) : 0;
     c.readback = el ? __qa.readback(el) : null;
   }
-  return { y: Math.round(scrollY), vh: innerHeight, canvases: list };
+  return { y: Math.round(window.__sy()), vh: innerHeight, canvases: list };
 }), "state read");
 
 const shot = async () => {
@@ -136,7 +140,7 @@ const check = async (label, { offOk = true } = {}) => {
 };
 
 const fling = (v, extra) => guard(page.evaluate(([v, e]) => window.__fling(v, e), [v, extra ?? {}]), "fling");
-const top = () => page.evaluate(() => window.scrollTo(0, 0));
+const top = () => page.evaluate(() => window.__top());
 const wait = (ms) => page.waitForTimeout(ms);
 const killGpu = () => { const mine = [...gpuPids()].filter((p) => !gpuBefore.has(p)); mine.forEach((p) => { try { process.kill(p, "SIGKILL"); } catch {} }); return mine; };
 
@@ -148,15 +152,19 @@ try {
   if (await reject.count()) await reject.first().click({ timeout: 2000 }).catch(() => {});
   await wait(600);
   const first = await check("baseline");
+  const s0 = await scrollState(page);
+  if (s0.scroller !== "document") console.log(`  · the page scrolls an inner element (${s0.scroller}, ${s0.max} px) — flicks drive it`);
   if (!first.canvases.length) console.log("  ! no canvas on the page — this probe has nothing to judge (pass for a page without a scene)");
 
+  let deepest = 0;
+  const seen = (step) => { deepest = Math.max(deepest, step.y); return step; };
   for (let it = 0; it < (o["no-scroll"] ? 0 : Number(o.iterations)); it++) {
     const t = `#${it}`;
     await fling(0.6); await check(`${t} partial-down`);
     await fling(-0.6); await check(`${t} partial-up`);
     await fling(2.5); await check(`${t} flick-past-first-screen`);
     await fling(-2.5); await wait(100); await check(`${t} flick-back`);
-    await fling(9); await fling(9); await check(`${t} bottom`);
+    await fling(9); await fling(9); seen(await check(`${t} bottom`));
     await wait(800);
     await fling(-9); await fling(-9); await fling(-9); await top(); await check(`${t} back-from-bottom`);
     await fling(2.2, { reverseAfterMs: 120, v1: -2.4 }); await check(`${t} reversal-1`);
@@ -165,12 +173,28 @@ try {
     const p1 = fling(1.2); await wait(80); await page.setViewportSize({ width: vp.width, height: vp.height + 86 }); await p1; await check(`${t} toolbar-collapsed`);
     const p2 = fling(-1.2); await wait(80); await page.setViewportSize({ width: vp.width, height: vp.height }); await p2; await top(); await wait(150); await check(`${t} toolbar-expanded`);
     // An anchor jump away, then the status-bar tap that smooth-scrolls to the top.
-    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight)); await wait(500); await check(`${t} jump-bottom`);
-    await page.evaluate(() => window.scrollTo({ top: 0, behavior: "smooth" })); await wait(1200); await check(`${t} status-bar-top`);
+    await page.evaluate(() => window.__to(window.__max())); await wait(500); await check(`${t} jump-bottom`);
+    // On an inner scroller the smooth return is driven per frame: WebKit dropped an element's
+    // scrollTo({ behavior: "smooth" }) here (and iOS's status-bar tap only scrolls the document).
+    await page.evaluate(() => {
+      const s = window.__scroller();
+      if (window.__isDoc(s)) return window.scrollTo({ top: 0, behavior: "smooth" });
+      const y0 = s.scrollTop, t0 = performance.now();
+      const f = (now) => { const k = Math.min(1, (now - t0) / 600); s.scrollTop = y0 * Math.pow(1 - k, 3); if (k < 1) requestAnimationFrame(f); };
+      requestAnimationFrame(f);
+    }); await wait(1200); await check(`${t} status-bar-top`);
     // Sit at the bottom (images decode, the scene is far off screen), then come back slowly.
     await fling(12); await fling(12); await wait(2500);
     for (let k = 0; k < 6; k++) await fling(-3.2);
     await top(); await wait(200); await check(`${t} slow-return`);
+  }
+
+  // A long page the flicks never moved: every step judged the first screen — an error, not a pass.
+  if (!o["no-scroll"] && Number(o.iterations) > 0 && ((s0.max > 16 && deepest <= 2) || s0.unclaimed)) {
+    const why = s0.unclaimed ? `the page reads as one screen, but ${s0.unclaimed} scrolls — the flicks could not move it; nothing below the first screen was checked`
+      : `the page is ${s0.max} px longer than its screen but every flick scrolled it 0 px (scroller: ${s0.scroller}) — nothing below the first screen was checked`;
+    result.failures.push({ label: "scrolled 0 px", reasons: [why] });
+    console.log(`  ✖ ${why}`);
   }
 
   if (o["gpu-kill"]) {

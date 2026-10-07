@@ -79,6 +79,22 @@ did work are in [[fix-catalog]]; how to add to either: [[knowledge/README]].
 - **A puppeteer timeout is not a frozen page.** Check with a trivial `evaluate`
   first (a cleanup that called `clearTimeout` on a `requestIdleCallback` id
   cancelled the probe's own timer — the id counters overlap; keep the id's kind).
+- **A "static / one screen, 0 px scrolled" verdict on a long page is void.**
+  A page that locks `<html>`/`<body>` (`overflow: hidden`) and scrolls an inner
+  element — a full-screen `overflow-y: auto` div, or Lenis with its own
+  `wrapper` — has `scrollY` 0 forever and a one-screen document. A scroll test
+  that asks the window recorded "one screen, 0 px" and **passed**; every probe
+  that scrolled with `window.scrollTo` judged the first screen only. The
+  `tools/qa/` tools now find the page's scroller (`lib/scroller.mjs`) and treat
+  "a long page that scrolled 0 px" as an error. When a verdict says *static* on
+  a page you know is long, or a coverage/scroll position reads 0 — stop: the
+  record is not a result. *Observed (1).*
+- **Lantern's LCP couples preload timing with hydration length.** Deferring a
+  `<head>` model preload on its own let the simulated mobile LCP jump to ~19 s
+  in half the runs; it held only once the long hydration task was split too.
+  Lantern places the LCP after whatever network and CPU work overlaps it, so a
+  change to one side moves the other. Change and measure the two together, and
+  read every run, not just the median. *Observed (1).*
 
 ## 2. Tooling traps
 
@@ -135,6 +151,12 @@ did work are in [[fix-catalog]]; how to add to either: [[knowledge/README]].
   own shell — anchor the pattern. macOS has no `timeout`.
 - **Print success from exit codes**, never unconditionally — a loop that echoed
   "merged" hid a push that did nothing.
+- **`ios-toolbar-probe` reads a `100lvh` canvas as "box changed" under an
+  emulated viewport step** — emulation shrinks `lvh` with the height, a real
+  iPhone never does. On its own that line is an artefact; the real check is that
+  the **buffer** (the canvas's width/height attributes) did not reallocate and
+  no shot went blank. Confirm a box-only failure in `qa:webkit` or on a device.
+  *Observed (1).*
 
 ## 3. Fixes that aren't
 
@@ -210,6 +232,22 @@ did work are in [[fix-catalog]]; how to add to either: [[knowledge/README]].
   painted over (`transform: translate(0)` restores the order). Look at both devices.
 - **A portal under `<body>` loses CSS variables set on wrappers** — render it
   inside the element that carries them, or copy them.
+- **Suspense-based idle hydration leaves hidden streamed segments — even on a
+  static prerender.** Wrapping sections in `<Suspense>` boundaries to hydrate
+  them on idle makes the server stream their HTML into `<div hidden>` segments
+  that a script moves into place; crawlers that run no JavaScript read that copy
+  as hidden. Give non-JS crawlers a boundary-free form (the robot form), and
+  check the served HTML with `curl` as a crawler, not the rendered DOM.
+  *Observed (1).*
+- **Rendering to a linear target, then to the screen, re-resolves every
+  material's program twice per frame.** A scene that drew the same materials
+  into a linear render target and then to the (sRGB) canvas changed the output
+  colour space between the two passes; the output colour space is part of
+  three.js's program key, so each switch re-derives every material's program
+  parameters — `getParameters` showed up in **every frame** of a scroll profile.
+  Draw the materials into one kind of target per frame (the scene once into the
+  target, then only a full-screen pass to the screen), and check the profile
+  again afterwards. *Observed (1).*
 
 ## 5. Design-to-code traps
 

@@ -32,6 +32,7 @@ GPU on, never a bundled Chromium.
 |---|---|---|---|
 | Is it in the green on PC and phone? | `lighthouse.mjs` | `qa:lh` | median perf ≥ 90, A11y/BP/SEO ≥ 100 |
 | Does it hitch while you scroll it? | `scroll-test.mjs` | `qa:scroll` | `ideal` on PC + phone |
+| Does a finger drag move the page at all? | `scroll-test.mjs --touch-drag` | `qa:scroll --touch-drag` | every drag moves it |
 | Which code is in that long task? | `profile.mjs` | `qa:profile` | diagnostic (`--budget` to gate) |
 | Does the iOS URL bar resize / blank the scene? | `ios-toolbar-probe.mjs` | `qa:ios` | no resize on height-only changes |
 | Does the scene really draw at the page's rate? | `fps-probe.mjs` | `qa:fps` | scene fps ≥ 0.8 × page fps |
@@ -52,6 +53,32 @@ run it first; it takes a third of a second.
 any layout change that touches breakpoints: `resize-check`. Chasing a number:
 `profile`. Launch prep: `brand-kit`, `capture-still` (if the robot form shows
 a still), `lighthouse --as-bot`.
+
+## Which element scrolls — `lib/scroller.mjs`
+
+Every tool that scrolls goes through **one** helper. Most pages scroll the
+document; some lock `<html>`/`<body>` (`overflow: hidden`) and scroll an inner
+element instead — a full-screen `overflow-y: auto` div, or Lenis with its own
+`wrapper` (often so iOS's toolbar never collapses). There `scrollY` stays 0, the
+document is one screen tall and `window.scrollTo` does nothing: before the
+helper, the scroll test recorded such a page as "static / one screen, 0 px" and
+**passed** it, and every probe judged its first screen only.
+
+- `SCROLLER` is installed in the page before any script (`installScroller(page)`,
+  puppeteer or Playwright) and defines `window.__scroller()` — Lenis's wrapper
+  element if Lenis runs on one; else the document when it is taller than the
+  viewport; else the first `overflow-y: auto|scroll` element ≥ 75 % of the screen
+  tall whose content overflows (four levels under `<body>`, the whole tree on a
+  fresh look) — plus `__sy()`, `__vh()`, `__max()`, `__to(y)`, `__by(dy)`,
+  `__top()`, `__stepTo(y, px, ms)`, `__yOf(el)`, `__locked()`.
+- Node side: `scrollToFraction(page, f)`, `scrollToY`, `scrollToSelector`
+  (`{ stepPx, stepMs }` to scroll in steps so the page's scroll handlers fire),
+  `scrollState(page)`, `zeroScroll(from, to)`.
+- **A long page that scrolled 0 px is an error in every tool, never a pass** —
+  and so is a page whose document is one screen while some other big element
+  scrolls (`__unclaimed()`: a scroller the helper could not take). The message
+  names the scroller; teach the helper rather than relaxing the check.
+- On a window-scrolled page every helper is exactly the old `window` call.
 
 ## The tools
 
@@ -75,7 +102,7 @@ the LCP element and the weighted failing audits.
   The tool also lists Chromes an earlier hung run left behind.
 
 ### scroll-test.mjs — the bar Lighthouse can't see
-`--url` · `--devices desktop,mobile` · `--runs 3` · `--first-scroll` · `--video` · `--headless` · `--accept ideal|smooth` · `--header`
+`--url` · `--devices desktop,mobile` · `--runs 3` · `--first-scroll` · `--touch-drag` · `--video` · `--headless` · `--accept ideal|smooth` · `--header`
 
 A **visible** real Chrome (headless GPU behaviour differs) scrolls the whole
 page like a person: PC 1440×900 @2 with wheel bursts of about a viewport;
@@ -107,8 +134,24 @@ prints dropped frames **by section**.
 `--first-scroll` adds a pass that scrolls **from the unlock frame** (a person
 wheels the instant a loader lets go; the main pass starts ~1 s later and
 missed exactly that moment on one site). A one-screen page is judged with
-pointer sweeps instead (`static`). `--video` records one extra, unmeasured run
-per device (needs ffmpeg) — look at it, then delete it.
+pointer sweeps instead (`static`) — but only when the page's **scroller** is
+one screen: a long inner-scroller page is scrolled through that element, and a
+long page that moved 0 px in both passes is an **error**. `--video` records one
+extra, unmeasured run per device (needs ffmpeg) — look at it, then delete it.
+
+`--touch-drag` runs **only** a touch check (~20 s, phone profile, headed unless
+`--headless`): a real finger drag via CDP `Input.dispatchTouchEvent`
+(touchStart → 12 moves over 40 % of the screen → touchEnd — not a synthesized
+gesture) starting **on** each fixed, visible element covering ≥ 60 % of the
+screen (else the centre), then a wheel at the same spot. FAIL when the finger
+moves the page 0 px; it prints what the finger hit and the wheel result. Why:
+Chrome chains a touch scroll along the **containing block**, not the DOM — a
+`position: fixed` panel inside a fixed inner scroller with the document locked
+chains to the locked viewport and swallows every drag, while a wheel can still
+work (wheel events bubble). Observed on a production site: phone scroll coverage
+0 % → 100 % after `pointer-events: none` on those panels (and a fixed cookie
+banner) on coarse pointers, `auto` again on their controls, links and canvases.
+Run it on any page that locks the document or pins full-screen layers.
 
 ### profile.mjs — which code is in the long task
 `--url` · `--device mobile|desktop` · `--wait 8000` · `--scroll-to <sel|px>` · `--as-bot` · `--top 3` · `--budget <ms>`
@@ -120,7 +163,9 @@ package/file, library calls and **your own functions** by inclusive time.
 when the build ships browser source maps — profile a build made with
 `QA_SOURCEMAPS=1 yarn build` (next.config.ts turns them on only then; never
 deploy that build); otherwise
-time is attributed per chunk. `--scroll-to` covers work that starts mid-scroll.
+time is attributed per chunk. `--scroll-to` covers work that starts mid-scroll
+(40 px a frame, through the page's scroller; a long page that doesn't move is
+an error).
 
 ### ios-toolbar-probe.mjs — Safari's URL bar
 `--url` · `--sel <canvas>` · `--wait 9000` · `--scroll 0.3` · `--heights 844,760,844,760,844,700,844` · `--rotate 844x390` · `--no-isolate`
@@ -291,6 +336,9 @@ It does **not** write a web manifest — `src/app/manifest.ts` builds it from
 - **Several canvases:** pass `--sel` for the scene's canvas. The probes follow
   one canvas across steps (an older probe followed "the largest canvas" each
   step and in landscape jumped to a different one — a false FAIL).
+- **"static", "one screen", `y=0` or 0 px on a page you know is long** — the
+  record is void, not a pass. The tools now say so themselves; if one ever
+  doesn't, the page scrolls something `lib/scroller.mjs` didn't find.
 - **Protected deployments:** `--header "x-vercel-protection-bypass: <secret>"`
   (lighthouse, scroll-test).
 - **zsh** doesn't word-split `$list` in `for x in $list` — use an array.

@@ -185,6 +185,23 @@ Lighthouse A11y stays 100.
   *Observed.* `<model-viewer>` is the reverse: it swallows vertical scrolling
   unless `touch-action="pan-y"`. **Prove:** emulated touch — a sideways swipe
   moves the slider, a vertical one scrolls the page.
+- **A finger drag scrolls nothing on Android, the wheel works.** The page locks
+  the document and scrolls a `position: fixed` inner scroller, with full-screen
+  `position: fixed` panels inside it (pinned scene layers, a fixed cookie
+  banner). Chrome chains a touch scroll along the **containing block**, not the
+  DOM: a fixed panel's containing block is the viewport, whose document is
+  locked, so the drag dies there (0 px); wheel events bubble through the DOM to
+  the scroller and still work — which is why desktop review never sees it. Fix:
+  `@media (pointer: coarse)` → `pointer-events: none` on those panels (and the
+  fixed banner), `pointer-events: auto` again on their controls, links and
+  canvases. A drag that starts on a re-enabled button still won't scroll (Lenis
+  `syncTouch` would, at the cost of native momentum — a design call).
+  *Observed* — phone scroll coverage 0 % → 100 %. **Prove:**
+  `node tools/qa/scroll-test.mjs --url … --touch-drag` — a real finger drag (CDP
+  touch events, headed) from each fixed full-screen panel must move the page;
+  it prints what the finger hit and the wheel result at the same spot. The
+  phone scroll test of such a page errors ("touch never moved it") instead of
+  passing.
 - **The whole page is zoomed out.** One section wider than the viewport (a
   `box-content w-full` with side padding) makes iOS fit the page. **Prove:**
   `document.documentElement.scrollWidth === innerWidth` at 320, 360, 390, 430
@@ -290,6 +307,7 @@ node tools/qa/fps-probe.mjs          --url …   # §3
 node tools/qa/resize-check.mjs       --url …                # rotation, device presets, overflow
 node tools/qa/webkit-probe.mjs       --url …   # iOS engine: menus, overflow, the bug at hand
 node tools/qa/scroll-test.mjs        --url …   # no regression on the phone scroll
+node tools/qa/scroll-test.mjs        --url … --touch-drag   # §5: a finger drag moves the page (fixed panels, inner scrollers)
 node tools/qa/lighthouse.mjs         --url …   # A11y/BP/SEO stay 100
 ```
 

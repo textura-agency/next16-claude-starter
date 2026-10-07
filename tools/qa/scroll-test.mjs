@@ -9,6 +9,20 @@
 //   node tools/qa/scroll-test.mjs --url … --first-scroll                # + scroll from the unlock frame
 //   node tools/qa/scroll-test.mjs --url … --video                       # + one unmeasured recording per device (needs ffmpeg)
 //   node tools/qa/scroll-test.mjs --url … --headless                    # no window — less faithful GPU behaviour
+//   node tools/qa/scroll-test.mjs --url … --touch-drag                  # ONLY the touch-drag check (below), ~20 s
+//
+// The page's scroller is found, not assumed (lib/scroller.mjs): a page that
+// locks <html>/<body> and scrolls a full-screen div or a Lenis wrapper is
+// scrolled through that element. A long page that scrolled 0 px is an ERROR,
+// never "static" — before this, such a page read "one screen, 0 px" and passed.
+//
+// --touch-drag: a real finger drag (CDP touch events) on the phone profile,
+// starting ON each fixed full-screen panel (else the centre), then a wheel at
+// the same spot. FAIL when the finger moves the page 0 px. Chrome chains a
+// touch scroll along the containing block, not the DOM: a fixed panel inside a
+// fixed inner scroller with the document locked swallows every drag while the
+// wheel still works. Fix: `pointer-events: none` on those panels on coarse
+// pointers, `auto` again on their controls / links / canvases.
 //
 // Verdict per device (the worse of cold and warm, medians across runs):
 //   ideal   no frame > 50 ms · ≤ 1 % dropped · p99 ≤ 33 ms     ← the bar
@@ -24,12 +38,12 @@
 // Budgets are 60 Hz even on a 120 Hz screen.
 import { execFileSync } from "node:child_process";
 import { cli, checkTarget, headersFrom, finish, warnIfBusy } from "./lib/run.mjs";
-import { scrollTest, DEVICES } from "./lib/scroll.mjs";
+import { scrollTest, touchDrag, DEVICES } from "./lib/scroll.mjs";
 
-const USAGE = `usage: node tools/qa/scroll-test.mjs --url <url> [--devices desktop,mobile] [--runs 3] [--first-scroll] [--video] [--headless] [--accept ideal|smooth] [--header "k: v"]`;
+const USAGE = `usage: node tools/qa/scroll-test.mjs --url <url> [--devices desktop,mobile] [--runs 3] [--first-scroll] [--touch-drag] [--video] [--headless] [--accept ideal|smooth] [--header "k: v"]`;
 const { o, outDir, rel } = cli("scroll-test", USAGE, {
   devices: { type: "string", default: "desktop,mobile" }, runs: { type: "string", default: "3" },
-  "first-scroll": { type: "boolean" }, video: { type: "boolean" }, headless: { type: "boolean" },
+  "first-scroll": { type: "boolean" }, "touch-drag": { type: "boolean" }, video: { type: "boolean" }, headless: { type: "boolean" },
   accept: { type: "string", default: "ideal" }, header: { type: "string", multiple: true },
   "ready-timeout": { type: "string", default: "30" }, "allow-dev": { type: "boolean" },
 });
@@ -38,6 +52,22 @@ for (const d of devices) if (!DEVICES[d]) { console.error(`✖ unknown device "$
 const runs = Number(o.runs);
 const headers = headersFrom(o.header);
 if (o.video) { try { execFileSync("ffmpeg", ["-version"], { stdio: "ignore" }); } catch { console.error("✖ --video needs ffmpeg on PATH (puppeteer's screencast encodes with it)"); process.exit(2); } }
+
+if (o["touch-drag"]) {
+  console.log(`▸ touch-drag check · mobile${o.headless ? " · headless" : " · a Chrome window opens — leave it visible"}`);
+  const target = await checkTarget(o.url, { headers });
+  let r;
+  try { r = await touchDrag({ url: o.url, headless: o.headless, headers, readyTimeout: Number(o["ready-timeout"]) * 1000 }); }
+  catch (e) { console.error(`✖ ${e.message}`); finish({ outDir, rel, pass: false, result: { tool: "scroll-test", mode: "touch-drag", url: o.url, error: e.message }, summary: `touch-drag: ${e.message}` }); }
+  if (r.static) console.log("    · nothing to scroll on this page (one screen) — nothing to drag");
+  const bad = r.points.filter((p) => !p.ok);
+  finish({
+    outDir, rel, pass: r.pass, result: { tool: "scroll-test", mode: "touch-drag", url: o.url, at: new Date().toISOString(), local: target.local, ...r },
+    summary: r.static ? "one-screen page — nothing to drag" : bad.length
+      ? `a finger drag from ${bad.map((p) => p.on).join(", ")} moved the page 0 px (scroller: ${r.scroller})${bad.some((p) => p.wheelPx > 2) ? " while the wheel works — make the fixed layers transparent to touch on coarse pointers (pointer-events: none), re-enable on their controls" : ""}`
+      : `every finger drag moved the page (scroller: ${r.scroller})`,
+  });
+}
 
 console.log(`▸ scroll test · ${devices.join(" + ")} × ${runs}${o.headless ? " · headless" : " · a Chrome window opens — leave it visible"}`);
 if (runs < 3) console.log(`  ! --runs ${runs}: for iterating; a verdict is the median of ≥ 3`);

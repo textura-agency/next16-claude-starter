@@ -34,6 +34,7 @@ import { join } from "node:path";
 import { cli, checkTarget, finish, sleep } from "./lib/run.mjs";
 import { launch, UA } from "./lib/chrome.mjs";
 import { psnr, strip } from "./lib/image.mjs";
+import { installScroller, scrollToFraction } from "./lib/scroller.mjs";
 
 const USAGE = `usage: node tools/qa/resize-check.mjs --url <url> [--sel "canvas,main,h1,header,footer"] [--tol 2] [--settle 1500,4000] [--only a,b] [--hide <selector>]`;
 const { o, outDir, rel } = cli("resize-check", USAGE, {
@@ -51,6 +52,7 @@ mkdirSync(tmp, { recursive: true });
 const browser = await launch({ headless: true, window: { w: 1440, h: 900 } });
 const open = async () => {
   const page = await browser.newPage();
+  await installScroller(page);
   await page.setUserAgent(UA.desktop);
   const cdp = await page.createCDPSession();
   const { windowId } = await cdp.send("Browser.getWindowForTarget");
@@ -65,7 +67,9 @@ const open = async () => {
   return { page, win, emulate };
 };
 const state = (page) => page.evaluate((sels) => {
-  const out = { scrollY: Math.round(scrollY), docH: document.documentElement.scrollHeight, overflowX: document.documentElement.scrollWidth - innerWidth, vw: innerWidth, vh: innerHeight, dpr: devicePixelRatio, boxes: {} };
+  // Scroll position and content height of the page's SCROLLER (lib/scroller.mjs).
+  window.__scroller(true);
+  const out = { scrollY: Math.round(window.__sy()), docH: window.__scroller().scrollHeight, scroller: window.__describe(), overflowX: document.documentElement.scrollWidth - innerWidth, vw: innerWidth, vh: innerHeight, dpr: devicePixelRatio, boxes: {} };
   for (const s of sels) { const el = document.querySelector(s); if (!el) continue; const r = el.getBoundingClientRect(); out.boxes[s] = [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)]; }
   return out;
 }, SELS);
@@ -87,7 +91,7 @@ const PHONE = { w: 390, h: 844, dpr: 3, mobile: true, touch: true };
 const SCENARIOS = [
   { name: "window-down", setup: (t) => t.win(1440, 900), act: (t) => t.win(500, 844), end: { kind: "window", w: 500, h: 844 } },
   { name: "window-drag", setup: (t) => t.win(1440, 900), act: async (t) => { for (let w = 1440; w >= 500; w -= 20) { await t.win(w, 900 - Math.round((1440 - w) * 0.06)); await sleep(30); } await t.win(500, 844); }, end: { kind: "window", w: 500, h: 844 } },
-  { name: "window-up", setup: async (t) => { await t.win(500, 844); }, afterLoad: (t) => t.page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight)), act: (t) => t.win(1440, 900), end: { kind: "window", w: 1440, h: 900 }, backToTop: true },
+  { name: "window-up", setup: async (t) => { await t.win(500, 844); }, afterLoad: (t) => scrollToFraction(t.page, 1), act: (t) => t.win(1440, 900), end: { kind: "window", w: 1440, h: 900 }, backToTop: true },
   { name: "device-preset", setup: (t) => t.win(1440, 900), act: (t) => t.emulate(PHONE), end: { kind: "emulate", m: PHONE } },
   { name: "device-back", setup: async (t) => { await t.win(1440, 900); await t.emulate(PHONE); }, act: (t) => t.emulate(null), end: { kind: "window", w: 1440, h: 900 } },
   { name: "responsive", setup: (t) => t.win(1440, 900), act: async (t) => { for (let w = 1440; w >= 390; w -= 30) { await t.emulate({ w, h: 900, dpr: 1, mobile: false }); await sleep(30); } await t.emulate({ w: 390, h: 900, dpr: 1, mobile: false }); }, end: { kind: "emulate", m: { w: 390, h: 900, dpr: 1, mobile: false } } },
@@ -102,14 +106,17 @@ try {
     await sc.setup(r);
     await r.page.goto(o.url, { waitUntil: "load", timeout: 90_000 });
     await sleep(4000);
-    if (sc.afterLoad) { await sc.afterLoad(r); await sleep(800); }
+    // A scenario that needs the page scrolled and could not scroll a long page is an error, not a match.
+    let scrollError = null;
+    if (sc.afterLoad) { scrollError = (await sc.afterLoad(r))?.error || null; await sleep(800); }
+    if (scrollError) console.log(`  ✖ ${sc.name.padEnd(14)} ${scrollError}`);
     await sc.act(r);
     const shots = [], lines = [];
     let waited = 0;
     for (const ms of SETTLE) {
       await sleep(ms - waited); waited = ms;
       // window-up: the browser keeps the old offset (fine) — bring the reader back to the top and compare layouts there.
-      if (sc.backToTop) { await r.page.evaluate(() => (window.lenis ? window.lenis.scrollTo(0, { immediate: true, force: true }) : window.scrollTo(0, 0))); await sleep(500); waited += 500; }
+      if (sc.backToTop) { await r.page.evaluate(() => window.__top()); await sleep(500); waited += 500; }
       await hide(r.page);
       const a = await state(r.page);
       const f = join(tmp, `${sc.name}-${ms}-resized.png`);
@@ -128,8 +135,8 @@ try {
     await f.page.close();
     // Boxes can match while what an element DRAWS is stale — compare pixels too.
     const p = psnr(shots.at(-1), fresh);
-    let bad = false;
-    const rows = [];
+    let bad = !!scrollError;
+    const rows = scrollError ? [{ ms: 0, differences: [scrollError] }] : [];
     for (const { ms, a } of lines) {
       const d = diff(a, b);
       if (d.length) bad = true;

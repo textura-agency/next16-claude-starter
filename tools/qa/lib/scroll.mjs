@@ -7,6 +7,7 @@
 import { join } from "node:path";
 import { mkdirSync } from "node:fs";
 import { DEVICES, NET, launch } from "./chrome.mjs";
+import { installScroller } from "./scroller.mjs";
 
 export { DEVICES };
 
@@ -23,11 +24,13 @@ const round = (x, d = 1) => (x == null ? null : +x.toFixed(d));
 
 // Injected before any page script. Records every frame gap with the scroll
 // position it happened at, every long animation frame with its scripts, every
-// layout shift. Flat arrays: the recorder must cost nothing.
+// layout shift. Flat arrays: the recorder must cost nothing. The position is
+// the page's SCROLLER's (lib/scroller.mjs, installed first): a page that locks
+// <html>/<body> and scrolls an inner element reads 0 on `scrollY` forever.
 function RECORDER() {
   const P = (window.__scroll = { f: [], loaf: [], shifts: [] });
   let last = performance.now();
-  const tick = (t) => { P.f.push(t, t - last, scrollY); last = t; requestAnimationFrame(tick); };
+  const tick = (t) => { P.f.push(t, t - last, window.__sy()); last = t; requestAnimationFrame(tick); };
   requestAnimationFrame(tick);
   try {
     new PerformanceObserver((l) => {
@@ -61,13 +64,11 @@ function RECORDER() {
 async function waitUnlocked(page, timeout) {
   await page.evaluate(() => { window.__okSince = 0; });
   await page.waitForFunction(() => {
-    const se = document.scrollingElement;
-    const l = window.lenis;
-    const hidden = (el) => /hidden|clip/.test(getComputedStyle(el).overflowY);
     // Any real scroll range counts: one phone page was 130 px taller than the
-    // viewport (15 %) and a 1.2× rule waited on it forever.
-    const ok = document.readyState === "complete" && se && se.scrollHeight > innerHeight + 16
-      && (l ? !l.isStopped && !l.isLocked : !hidden(document.documentElement) && !hidden(document.body));
+    // viewport (15 %) and a 1.2× rule waited on it forever. "Locked" is asked of
+    // the scroller: an inner-scroller page keeps <html>/<body> hidden for good.
+    window.__scroller(true);
+    const ok = document.readyState === "complete" && window.__max() > 16 && !window.__locked();
     if (!ok) { window.__okSince = 0; return false; }
     window.__okSince ||= performance.now();
     return performance.now() - window.__okSince > 1000;
@@ -79,12 +80,12 @@ async function waitScrollable(page, device, cdp, timeout) {
   const { width: w, height: h } = device.viewport;
   await waitUnlocked(page, timeout);
   while (Date.now() - t0 < timeout) {
-    const y0 = await page.evaluate(() => scrollY);
+    const y0 = await page.evaluate(() => window.__sy());
     if (device.input === "wheel") { await page.mouse.move(w / 2, h / 2); await page.mouse.wheel({ deltaY: 120 }); }
     else await cdp.send("Input.synthesizeScrollGesture", { x: Math.round(w / 2), y: Math.round(h * 0.45), yDistance: -120, speed: 800, gestureSourceType: "touch", preventFling: true });
     await sleep(450);
-    if ((await page.evaluate(() => scrollY)) > y0 + 2) {
-      await page.evaluate(() => (window.lenis ? window.lenis.scrollTo(0, { immediate: true, force: true }) : scrollTo(0, 0)));
+    if ((await page.evaluate(() => window.__sy())) > y0 + 2) {
+      await page.evaluate(() => window.__top());
       await sleep(300);
       return Date.now() - t0;
     }
@@ -94,8 +95,8 @@ async function waitScrollable(page, device, cdp, timeout) {
 }
 
 const atBottom = (page) => page.evaluate(() => {
-  const max = document.scrollingElement.scrollHeight - innerHeight;
-  return { y: scrollY, max, done: scrollY >= max - 4 };
+  const max = window.__max(), y = window.__sy();
+  return { y, max, done: y >= max - 4 };
 });
 
 // Bursts of about one viewport, then a short pause — how people read a page.
@@ -233,6 +234,7 @@ async function oneRun({ url, name, headless, readyTimeout, video, headers = {}, 
       await cdp.send("Network.enable");
       await cdp.send("Network.emulateNetworkConditions", { offline: false, ...NET[device.net] });
     }
+    await installScroller(page);
     await page.evaluateOnNewDocument(RECORDER);
 
     // Crop to the emulated viewport: puppeteer sizes the recording from the
@@ -247,12 +249,18 @@ async function oneRun({ url, name, headless, readyTimeout, video, headers = {}, 
     // experience is the pointer on the page, so each "pass" holds the page and
     // moves the pointer across it for as long as a scroll pass would take —
     // the same frames, the same thresholds, coverage 1 by definition.
+    // "One screen" is asked of the scroller, never the document alone: a page
+    // that locks <html>/<body> and scrolls a full-screen div has a one-screen
+    // document and was once judged "static", 0 px scrolled, PASS.
     const oneScreen = await page.evaluate(async () => {
-      const one = () => document.readyState === "complete" && document.scrollingElement.scrollHeight <= innerHeight * 1.05;
+      const one = () => document.readyState === "complete" && (window.__scroller(true), window.__max() <= window.__vh() * 0.05);
       for (let i = 0; i < 2; i++) { await new Promise((r) => setTimeout(r, 2000)); if (!one()) return false; }
       return true;
     });
     if (oneScreen) {
+      // A long page this file failed to find the scroller of must not pass as static.
+      const unclaimed = await page.evaluate(() => window.__unclaimed());
+      if (unclaimed) throw new Error(`the document is one screen, but ${unclaimed} scrolls — a long page read as static; teach lib/scroller.mjs to find this scroller`);
       if (warmup) { await pointerPass(page, device, cdp, 3000); return null; }
       const now = () => page.evaluate(() => performance.now());
       const hz = await page.evaluate(() => new Promise((res) => {
@@ -278,8 +286,13 @@ async function oneRun({ url, name, headless, readyTimeout, video, headers = {}, 
       };
     }
 
-    const readyMs = await waitScrollable(page, device, cdp, readyTimeout).catch(() => null);
-    if (readyMs == null) throw new Error(`page never became scrollable within ${readyTimeout / 1000}s (loader? lenis stopped? overflow hidden?)`);
+    const readyMs = await waitScrollable(page, device, cdp, readyTimeout).catch(() => {
+      throw new Error(`page never became scrollable within ${readyTimeout / 1000}s (loader? lenis stopped? overflow hidden on the scroller?)`);
+    });
+    if (readyMs == null) {
+      const s = await page.evaluate(() => ({ max: Math.round(window.__max()), where: window.__describe() }));
+      throw new Error(`the page is unlocked and ${s.max} px longer than the screen (scroller: ${s.where}), but ${device.input === "touch" ? "touch" : "the wheel"} never moved it within ${readyTimeout / 1000}s — a fixed layer over the page may swallow the input${device.input === "touch" ? " (scroll-test --touch-drag names it)" : ""}`);
+    }
     await sleep(1000);
 
     if (warmup) { await scrollDown(page, device, cdp); return null; }
@@ -292,16 +305,21 @@ async function oneRun({ url, name, headless, readyTimeout, video, headers = {}, 
 
     const now = () => page.evaluate(() => performance.now());
     const coldA = await now(); const cold = await scrollDown(page, device, cdp); const coldB = await now();
-    await page.evaluate(() => (window.lenis ? window.lenis.scrollTo(0, { immediate: true, force: true }) : scrollTo(0, 0)));
+    await page.evaluate(() => window.__top());
     await sleep(1500);
     const warmA = await now(); const warm = await scrollDown(page, device, cdp); const warmB = await now();
     await recorder?.stop();
+    // A long page that never moved measured the first screen only — an error, not a verdict.
+    if (cold.max > 16 && cold.y <= 2 && warm.y <= 2) {
+      const where = await page.evaluate(() => window.__describe());
+      throw new Error(`the page is ${Math.round(cold.max)} px longer than the screen but scrolled 0 px in both passes (scroller: ${where}) — ${device.input === "touch" ? "a touch that lands on a fixed panel may be swallowed (try --touch-drag)" : "the wheel never reached the scroller"}`);
+    }
 
     const raw = await page.evaluate(() => window.__scroll);
     const sections = await page.evaluate(() => ({
-      vh: innerHeight,
+      vh: window.__vh(),
       list: [...document.querySelectorAll("header, main > *, section, article, footer, [data-section]")].map((el) => {
-        const r = el.getBoundingClientRect(); const top = r.top + scrollY;
+        const r = el.getBoundingClientRect(); const top = window.__yOf(el);
         const cls = typeof el.className === "string" ? el.className.trim().split(/\s+/)[0] : "";
         const label = el.getAttribute("aria-label") || el.getAttribute("data-section") || el.querySelector("h1,h2")?.textContent?.trim().slice(0, 32) || "";
         return { top, bottom: top + r.height, name: `${el.tagName.toLowerCase()}${el.id ? "#" + el.id : cls ? "." + cls : ""}${label ? ` "${label}"` : ""}` };
@@ -342,14 +360,11 @@ async function firstScrollRun({ url, name, headless, readyTimeout, headers = {} 
     if (device.cpu > 1) await cdp.send("Emulation.setCPUThrottlingRate", { rate: device.cpu });
     await cdp.send("Network.enable");
     await cdp.send("Network.emulateNetworkConditions", { offline: false, ...NET[device.net] });
+    await installScroller(page);
     await page.evaluateOnNewDocument(RECORDER);
     await page.goto(url, { waitUntil: "load", timeout: 90_000 });
     // Unlocked, no hold: the first frame a person could scroll.
-    await page.waitForFunction(() => {
-      const se = document.scrollingElement, l = window.lenis;
-      const hidden = (el) => /hidden|clip/.test(getComputedStyle(el).overflowY);
-      return se && se.scrollHeight > innerHeight + 16 && (l ? !l.isStopped && !l.isLocked : !hidden(document.documentElement) && !hidden(document.body));
-    }, { timeout: readyTimeout, polling: "raf" });
+    await page.waitForFunction(() => { window.__scroller(true); return window.__max() > 16 && !window.__locked(); }, { timeout: readyTimeout, polling: "raf" });
     const a = await page.evaluate(() => performance.now());
     if (device.input === "wheel") await page.mouse.move(w / 2, h / 2);
     for (let b = 0; b < 3; b++) {
@@ -359,14 +374,16 @@ async function firstScrollRun({ url, name, headless, readyTimeout, headers = {} 
     await sleep(600);
     const b = await page.evaluate(() => performance.now());
     const raw = await page.evaluate(() => window.__scroll);
-    const sections = await page.evaluate(() => ({ vh: innerHeight, list: [...document.querySelectorAll("header, main > *, section, footer")].map((el) => {
-      const r = el.getBoundingClientRect(); const top = r.top + scrollY;
+    const sections = await page.evaluate(() => ({ vh: window.__vh(), list: [...document.querySelectorAll("header, main > *, section, footer")].map((el) => {
+      const r = el.getBoundingClientRect(); const top = window.__yOf(el);
       const label = el.getAttribute("aria-label") || el.querySelector("h1,h2")?.textContent?.trim().slice(0, 32) || "";
       return { top, bottom: top + r.height, name: `${el.tagName.toLowerCase()}${el.id ? "#" + el.id : ""}${label ? ` "${label}"` : ""}` };
     }).filter((s) => s.bottom - s.top > 40) }));
     const resources = await page.evaluate(() => performance.getEntriesByType("resource").map((e) => ({ url: e.name.replace(/^https?:\/\/[^/]+/, "").slice(0, 120), type: e.initiatorType, end: e.responseEnd, kb: Math.round((e.transferSize || e.encodedBodySize || 0) / 1024) })));
     const pass = summarisePass(raw, a, b, sections, resources);
-    return { unlockAtMs: Math.round(a), scrolledTo: await page.evaluate(() => Math.round(scrollY)), ...pass };
+    const scrolledTo = await page.evaluate(() => Math.round(window.__sy()));
+    if (scrolledTo <= 2) throw new Error("three bursts from the unlock frame scrolled 0 px");
+    return { unlockAtMs: Math.round(a), scrolledTo, ...pass };
   } finally {
     await browser.close();
   }
@@ -469,4 +486,104 @@ export async function scrollTest({ url, devices, runs, outDir, headless = false,
     }
   }
   return { result, config: { devices: Object.fromEntries(devices.map((d) => [d, { ...DEVICES[d], ua: undefined, network: NET[DEVICES[d].net] }])), targets: TARGETS, budgetMs: round(FRAME_BUDGET_MS, 2), headless, serverWarmup: true } };
+}
+
+// The touch-drag check: a real finger drag (CDP Input.dispatchTouchEvent —
+// touchStart, moves, touchEnd; not a synthesized gesture) that STARTS ON a
+// fixed full-screen panel, and fails when the page does not move.
+// Why: Chrome chains a touch scroll along the CONTAINING BLOCK, not the DOM. A
+// `position: fixed` panel (a pinned scene layer, a fixed cookie banner…) inside
+// a fixed inner scroller, with the document locked, chains to the locked
+// viewport — the finger drag scrolls nothing — while a wheel over the same
+// spot works (wheel events bubble to the scroller). Observed on a production
+// site: phone scroll coverage 0 % → 100 % after turning off hit-testing on
+// those panels on coarse pointers (pointer-events: none) and re-enabling it on
+// the controls, links and canvases inside them.
+// Each start point is dragged by touch, then by wheel at the same spot, from
+// the top. Verdict per point: touch moved ⇒ ok; touch 0 px ⇒ FAIL (and the
+// wheel result says whether it is this containing-block case).
+export async function touchDrag({ url, headless = false, readyTimeout = 30_000, headers = {}, log = console.log }) {
+  const device = DEVICES.mobile;
+  const { width: w, height: h } = device.viewport;
+  const browser = await launch({ headless: headless ? true : false, window: { w: w + 40, h: h + 140 } });
+  try {
+    const page = await (await browser.createBrowserContext()).newPage();
+    await page.setViewport(device.viewport);       // hasTouch → touch emulation on
+    await page.setUserAgent(device.ua);
+    if (Object.keys(headers).length) await page.setExtraHTTPHeaders(headers);
+    const cdp = await page.createCDPSession();
+    await installScroller(page);
+    await page.goto(url, { waitUntil: "load", timeout: 90_000 });
+    try { await waitUnlocked(page, readyTimeout); }
+    catch {
+      const s = await page.evaluate(() => ({ max: window.__max(), locked: window.__locked(), unclaimed: window.__unclaimed() }));
+      if (s.unclaimed) throw new Error(`the page reads as one screen, but ${s.unclaimed} scrolls — a long page this check cannot follow; nothing was dragged`);
+      if (s.max <= 16) return { static: true, points: [], scroller: "document", pass: true };
+      throw new Error(`the page never unlocked within ${readyTimeout / 1000}s (loader? lenis stopped? overflow hidden on the scroller?)`);
+    }
+    await sleep(800);
+    const info = await page.evaluate(() => {
+      const s = window.__scroller(true);
+      const name = (el) => { const cls = typeof el.className === "string" ? el.className.trim().split(/\s+/)[0] : ""; return `${el.tagName.toLowerCase()}${el.id ? "#" + el.id : cls ? "." + cls : ""}`; };
+      const vw = innerWidth, vh = innerHeight;
+      // Fixed, shown, covering ≥ 60 % of the screen, and not the scroller or one of its ancestors.
+      const panels = [...document.querySelectorAll("body *")].filter((el) => {
+        const cs = getComputedStyle(el);
+        if (cs.position !== "fixed" || cs.display === "none" || cs.visibility === "hidden" || Number(cs.opacity) < 0.01) return false;
+        if (el === s || el.contains(s)) return false;
+        const r = el.getBoundingClientRect();
+        const area = Math.max(0, Math.min(r.right, vw) - Math.max(r.left, 0)) * Math.max(0, Math.min(r.bottom, vh) - Math.max(r.top, 0));
+        return area >= vw * vh * 0.6;
+      }).slice(0, 3).map((el) => {
+        const r = el.getBoundingClientRect();
+        return { name: name(el), x: Math.round(Math.max(r.left, 0) + Math.min(r.width, vw) * 0.5), y: Math.round(Math.max(r.top, 0) + Math.min(r.height, vh) * 0.62) };
+      });
+      return { scroller: window.__describe(), max: Math.round(window.__max()), panels };
+    });
+    if (info.max <= 16) {
+      const unclaimed = await page.evaluate(() => window.__unclaimed());
+      if (unclaimed) throw new Error(`the page reads as one screen, but ${unclaimed} scrolls — a long page this check cannot follow; nothing was dragged`);
+      return { static: true, points: [], scroller: info.scroller, pass: true };
+    }
+    const points = info.panels.length ? info.panels.map((p) => ({ ...p, on: `fixed panel ${p.name}` }))
+      : [{ name: null, x: Math.round(w / 2), y: Math.round(h * 0.62), on: "the centre (no fixed full-screen panel on this page)" }];
+    const out = [];
+    for (const p of points) {
+      // What a finger at that spot hits, and the fixed element it sits in.
+      const hit = await page.evaluate(([x, y]) => {
+        const el = document.elementFromPoint(x, y);
+        if (!el) return { hit: null, fixedIn: null };
+        let f = el; while (f && f !== document.body && getComputedStyle(f).position !== "fixed") f = f.parentElement;
+        const nm = (n) => { const cls = typeof n.className === "string" ? n.className.trim().split(/\s+/)[0] : ""; return `${n.tagName.toLowerCase()}${n.id ? "#" + n.id : cls ? "." + cls : ""}`; };
+        return { hit: nm(el), fixedIn: f && f !== document.body && f !== window.__scroller() ? nm(f) : null };
+      }, [p.x, p.y]);
+      const drag = async (kind) => {
+        await page.evaluate(() => window.__top());
+        await sleep(500);
+        const y0 = await page.evaluate(() => window.__sy());
+        if (kind === "touch") {
+          const dist = Math.round(h * 0.4), steps = 12;
+          await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: p.x, y: p.y }] });
+          for (let i = 1; i <= steps; i++) {
+            await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: p.x, y: Math.round(p.y - (dist * i) / steps) }] });
+            await sleep(20);
+          }
+          await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+        } else {
+          await page.mouse.move(p.x, p.y);
+          for (let i = 0; i < 4; i++) { await page.mouse.wheel({ deltaY: 100 }); await sleep(30); }
+        }
+        await sleep(800);
+        return Math.round((await page.evaluate(() => window.__sy())) - y0);
+      };
+      const touch = await drag("touch");
+      const wheel = await drag("wheel");
+      const ok = touch > 2;
+      out.push({ ...p, ...hit, touchPx: touch, wheelPx: wheel, ok });
+      log(`    ${ok ? "✔" : "✖"} drag from ${p.on} @${p.x},${p.y} (finger hits ${hit.hit || "nothing"}${hit.fixedIn ? `, inside fixed ${hit.fixedIn}` : ""}): touch ${touch} px · wheel ${wheel} px${!ok && wheel > 2 ? "  ← wheel moves, the finger doesn't: a fixed layer swallows the touch scroll" : ""}`);
+    }
+    return { static: false, scroller: info.scroller, max: info.max, points: out, pass: out.every((x) => x.ok) };
+  } finally {
+    await browser.close();
+  }
 }

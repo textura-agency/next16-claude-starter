@@ -117,6 +117,20 @@ is gone.
 - No hover springs, pointer-driven CSS writes or custom cursors on coarse
   pointers; a custom cursor never hides the native one.
 - Fixed bottom overlays (the cookie banner) eat swipes that start on them.
+- **A page that scrolls an inner element with full-screen fixed panels can't be
+  finger-scrolled at all in Chrome** (0 px), while the wheel works. Chrome chains
+  a touch scroll along the containing block, not the DOM — a `position: fixed`
+  panel inside a fixed inner scroller with a locked document chains to the
+  locked viewport; wheel events bubble to the scroller. Fix: on coarse pointers
+  `pointer-events: none` on the panels (and a fixed cookie banner),
+  `pointer-events: auto` on their controls, links and canvases. Prove it with
+  `node tools/qa/scroll-test.mjs --url … --touch-drag` (a real finger drag from
+  each fixed full-screen panel must move the page). Observed on a production
+  site: phone scroll coverage 0 % → 100 %. [[fix-catalog]] §9.
+- **An inner scroller fools any tool that asks the window.** `scrollY` stays 0
+  and the document is one screen tall; the `tools/qa/` tools follow the page's
+  real scroller and call "a long page that scrolled 0 px" an error. If a verdict
+  ever says *static* on a long page, the record is void. [[pitfalls]] §1.
 
 ## 6. Gyroscope (optional, a design choice)
 
@@ -177,7 +191,8 @@ For anything iOS-only, a Chrome probe passing proves little. In order:
   reaching the bottom?
 - Open/close the menu — bottom button visible, readable, focus sane; try dark
   mode.
-- Swipe every slider sideways; scroll over every interactive canvas.
+- Swipe every slider sideways; scroll over every interactive canvas; drag from
+  the middle of a full-screen pinned layer (Android Chrome).
 - Rotate; switch tabs and come back.
 - Turn on Reduce Motion — the page stays usable and nothing loops.
 

@@ -27,6 +27,7 @@ import { join } from "node:path";
 import { SourceMap } from "node:module";
 import { cli, checkTarget, finish, sleep, warnIfBusy } from "./lib/run.mjs";
 import { launch, UA } from "./lib/chrome.mjs";
+import { installScroller, scrollToSelector, scrollToY } from "./lib/scroller.mjs";
 
 const USAGE = `usage: node tools/qa/profile.mjs --url <url> [--device mobile|desktop] [--wait 8000] [--scroll-to <selector|px>] [--as-bot] [--top 3] [--budget 0]`;
 const { o, outDir, rel } = cli("profile", USAGE, {
@@ -39,13 +40,14 @@ await checkTarget(o.url);
 warnIfBusy();
 
 const browser = await launch({ headless: true, args: ["--no-sandbox"] });
-let top = [], hasMaps = false, profilePath;
+let top = [], hasMaps = false, profilePath, scrollError = null;
 try {
   const page = await browser.newPage();
   await page.setViewport(mobile ? { width: 412, height: 823, deviceScaleFactor: 1.75, isMobile: true, hasTouch: true } : { width: 1440, height: 900, deviceScaleFactor: 1 });
   const people = mobile ? UA.android : UA.desktop;
   await page.setUserAgent(o["as-bot"] ? UA.googlebot : people);
   const cdp = await page.createCDPSession();
+  await installScroller(page);
   await page.goto(o.url, { waitUntil: "load", timeout: 90_000 });
   await sleep(3000);
   await page.goto("about:blank");
@@ -58,16 +60,14 @@ try {
   if (o["scroll-to"]) {
     // 40 px a frame: the page's own scroll handlers and proximity gates fire
     // as they would for a visitor (Lenis, if present, follows native scroll).
-    const reached = await page.evaluate(async (sel) => {
-      const px = /^\d+$/.test(sel);
-      const el = px ? null : document.querySelector(sel);
-      if (!el && !px) return false;
-      const goal = el ? el.getBoundingClientRect().top + scrollY : Number(sel);
-      let last = -1;
-      while (scrollY + 40 < goal && scrollY !== last) { last = scrollY; scrollBy(0, 40); await new Promise((r) => requestAnimationFrame(r)); }
-      return true;
-    }, o["scroll-to"]);
-    if (!reached) console.log(`  ! no element matches ${o["scroll-to"]}`);
+    // Through the page's scroller — an inner full-screen div when <html>/<body>
+    // are locked; a long page that does not move is an error, not a profile.
+    const sel = o["scroll-to"], step = { stepPx: 40, stepMs: 0 };
+    const sc = /^\d+$/.test(sel) ? await scrollToY(page, Number(sel), step) : await scrollToSelector(page, sel, step);
+    if (!sc) scrollError = `no element matches ${sel}`;
+    else if (sc.error) scrollError = `--scroll-to ${sel}: ${sc.error}`;
+    else console.log(`  scrolled ${sc.scroller} to y=${sc.y} of ${sc.max}`);
+    if (scrollError) console.log(`  ✖ ${scrollError}`);
     await sleep(3000);
   }
   const { profile } = await cdp.send("Profiler.stop");
@@ -145,9 +145,9 @@ try {
 
 const budget = Number(o.budget);
 const worst = top[0]?.d ?? 0;
-const pass = !budget || worst <= budget;
+const pass = !scrollError && (!budget || worst <= budget);
 finish({
   outDir, rel, pass,
   result: { tool: "profile", url: o.url, device: o.device, asBot: !!o["as-bot"], sourceMaps: hasMaps, busiest: top.map((r) => ({ ms: Math.round(r.d), self: r.self, libs: r.libs, own: r.own })) },
-  summary: budget ? `busiest main-thread run ${Math.round(worst)} ms (budget ${budget} ms)` : `busiest main-thread run ${Math.round(worst)} ms — a diagnostic; pass --budget <ms> to make it a gate`,
+  summary: scrollError ? `ERROR: ${scrollError}` : budget ? `busiest main-thread run ${Math.round(worst)} ms (budget ${budget} ms)` : `busiest main-thread run ${Math.round(worst)} ms — a diagnostic; pass --budget <ms> to make it a gate`,
 });

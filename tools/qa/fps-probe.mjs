@@ -25,6 +25,7 @@
 import { cli, checkTarget, finish, sleep, warnIfBusy } from "./lib/run.mjs";
 import { launch, DEVICES } from "./lib/chrome.mjs";
 import { CANVAS_PROBE } from "./lib/canvas-probe.mjs";
+import { installScroller, scrollToY, scrollState } from "./lib/scroller.mjs";
 
 const USAGE = `usage: node tools/qa/fps-probe.mjs --url <url> [--device mobile|desktop] [--wait 9000] [--cpu 4] [--scroll-start px] [--min-ratio 0.8]`;
 const { o, outDir, rel } = cli("fps-probe", USAGE, {
@@ -68,7 +69,7 @@ const pct = (a, p) => { const b = [...a].sort((x, y) => x - y); return b.length 
 
 const browser = await launch({ headless: false, window: { w: dev.viewport.width + 40, h: dev.viewport.height + 140 } });
 const windows = {};
-let offscreen = 0;
+let offscreen = 0, scrollError = null;
 try {
   const page = await (await browser.createBrowserContext()).newPage();
   await page.setViewport(dev.viewport);
@@ -77,9 +78,13 @@ try {
   if (cpu > 1) await cdp.send("Emulation.setCPUThrottlingRate", { rate: cpu });
   await page.evaluateOnNewDocument(CANVAS_PROBE, { preserve: false });
   await page.evaluateOnNewDocument(INIT);
+  await installScroller(page);
   await page.goto(o.url, { waitUntil: "load", timeout: 90_000 });
   await sleep(Number(o.wait));
-  if (Number(o["scroll-start"])) { await page.evaluate((y) => window.scrollTo(0, y), Number(o["scroll-start"])); await sleep(1500); }
+  if (Number(o["scroll-start"])) {
+    const sc = await scrollToY(page, Number(o["scroll-start"]), { settle: 1500 });
+    if (sc.error) scrollError = `--scroll-start: ${sc.error}`;
+  }
   const measure = async (label, during) => {
     await page.evaluate(() => { const s = window.__fps; s.on = true; for (const e of Object.values(s.per)) Object.assign(e, { raf: 0, draws: 0, last: 0, gaps: [], off: 0 }); });
     const t0 = Date.now();
@@ -98,6 +103,8 @@ try {
   };
   console.log(`▸ ${o.device} · ${cpu}× CPU · headed Chrome`);
   await measure("rest");
+  const s0 = await scrollState(page);
+  let lo = s0.y, hi = s0.y;
   await measure("scrolling", async () => {
     const end = Date.now() + 4800;
     let dir = 1;
@@ -105,10 +112,15 @@ try {
     while (Date.now() < end) {
       if (desktop) { await page.mouse.move(vw / 2, vh / 2); for (let i = 0; i < 10; i++) { await page.mouse.wheel({ deltaY: 120 * dir }); await sleep(40); } }
       else await cdp.send("Input.synthesizeScrollGesture", { x: Math.round(vw / 2), y: Math.round(vh * 0.7), yDistance: -Math.round(vh * 0.6) * dir, speed: 1200, gestureSourceType: "touch" });
-      const y = await page.evaluate(() => scrollY / Math.max(1, document.documentElement.scrollHeight - innerHeight));
+      const [py, max] = await page.evaluate(() => [window.__sy(), window.__max()]);
+      lo = Math.min(lo, py); hi = Math.max(hi, py);
+      const y = py / Math.max(1, max);
       if (y > 0.9) dir = -1; else if (y < 0.05) dir = 1;
     }
   });
+  // A long page that the scrolling window never moved measured the rest window twice.
+  if (!scrollError && s0.unclaimed) scrollError = `the page reads as one screen, but ${s0.unclaimed} scrolls — the probe cannot follow its position, so the scrolling window is unverified`;
+  if (!scrollError && s0.max > 16 && hi - lo <= 2) scrollError = `the page is ${s0.max} px longer than its screen but the scrolling window moved it 0 px (scroller: ${s0.scroller})`;
 } finally { await browser.close(); }
 
 const verdicts = [];
@@ -125,6 +137,7 @@ for (const [label, list] of Object.entries(windows)) {
     } else verdicts.push(`${label}: canvas #${c.id} keeps up (${c.scenePerS} of ${c.pagePerS} fps)`);
   }
 }
+if (scrollError) { pass = false; verdicts.unshift(`ERROR: ${scrollError}`); }
 for (const v of verdicts) console.log(`  · ${v}`);
 console.log("  · 120 Hz screens: per-frame easings and speeds must scale by dt, or motion runs 2× fast there — this probe counts frames, not speed");
 finish({ outDir, rel, pass, result: { tool: "fps-probe", url: o.url, device: o.device, cpu, minRatio, offscreenScenes: offscreen, windows, verdicts }, summary: verdicts.join(" · ") });

@@ -510,6 +510,20 @@ CLS sums distance, not frames. Use transforms. (inherited; see [[pitfalls]])
   + post-paint start mobile 51 → 87.
 - **Status:** rule (compress the model); observed per technique.
 
+### Index glTF node names before `mixer.clipAction` on big rigs
+- **Symptom:** a long task when a rigged model's animations start — the profile
+  is inside three.js's `PropertyBinding` / `findNode`, once per track.
+- **Cause:** binding a clip resolves every track's target by walking the model's
+  subtree by name; a rig with hundreds of nodes and tracks walks it hundreds of
+  times.
+- **Fix:** traverse the model once into a `Map` of node name → object, and
+  resolve tracks from it before `mixer.clipAction(…)` (or rename tracks to the
+  objects' UUIDs from the index). Same idea for nearest-point lookups on a long
+  curve: an exact spatial grid instead of a full scan (0 mismatches in 88 k
+  checks).
+- **Evidence:** 1 site — clip binding 297 → 12 ms at 4× CPU.
+- **Status:** observed (1).
+
 ---
 
 ## 6. Fonts and media
@@ -615,6 +629,17 @@ resolution: 1.46 MB → 13 KB. A `%20` in a `next/image` `src` is encoded twice 
   overlap — it doesn't pass.
 - **Evidence:** 2 sites — mobile A11y 96 → 100.
 - **Status:** observed.
+
+### A cookie banner on a fixed-panel site: under the header and the curtain, entering by clip
+- **Symptom:** Accessibility 96 on some runs with the banner in the audit (an
+  opacity entrance sampled mid-way); the banner sits over the phone menu or
+  shows through a loading curtain.
+- **Fix:** stack the banner **under** the header (so the phone menu covers it)
+  and **under** the loading curtain (it is never seen half-revealed through
+  it), and let it enter by a clip/mask sweep at **full opacity** instead of an
+  opacity fade — every sampled moment has full-contrast text.
+- **Evidence:** 1 site — Accessibility 96 → 100 in all runs.
+- **Status:** observed (1).
 
 ---
 
@@ -777,6 +802,27 @@ resolution: 1.46 MB → 13 KB. A `%20` in a `next/image` `src` is encoded twice 
   pointer-driven CSS writes on touch. A custom cursor never hides the native one
   and is off on coarse pointers.
 - **Status:** observed.
+
+### Touch scroll through fixed panels (Chrome)
+- **Symptom:** on an Android phone a finger drag scrolls nothing (0 px) while a
+  wheel and every desktop browser scroll fine; the phone scroll test reads
+  0 % coverage or "never became scrollable".
+- **Cause:** the page locks the document and scrolls a `position: fixed`
+  inner scroller, with full-screen `position: fixed` panels (pinned scene
+  layers, a fixed cookie banner) inside it. Chrome chains a touch scroll along
+  the **containing block**, not the DOM: a fixed panel's containing block is the
+  viewport, whose document is locked, so the drag never reaches the scroller.
+  Wheel events bubble through the DOM, so wheel input still works.
+- **Fix:** on coarse pointers turn off hit-testing on the panels (and the fixed
+  banner) — `@media (pointer: coarse) { .panel { pointer-events: none } }` — and
+  re-enable it on what must stay interactive inside them: controls, links,
+  canvases. A drag that starts on a re-enabled button still won't scroll
+  (Lenis `syncTouch` would, at the cost of native momentum — a design call).
+- **Proof:** `node tools/qa/scroll-test.mjs --url … --touch-drag` — a real
+  finger drag (CDP touch events) from each fixed full-screen panel must move
+  the page.
+- **Evidence:** 1 site — phone scroll coverage 0 % → 100 %.
+- **Status:** observed (1).
 
 ### Gyroscope motion for static hero models (progressive enhancement)
 - **Fix:** one module (`src/lib/scene/device-tilt.ts`): coarse pointers only,
