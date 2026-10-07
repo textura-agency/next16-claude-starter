@@ -1,0 +1,194 @@
+// 📖 Docs: obsidian/backend/cms-payload.md
+/**
+ * The site's copy, read from Payload — the one place the views ask for it.
+ *
+ * Every getter returns the same type as the code's own content object, so a
+ * view swaps `HERO` for `await getText("hero")` and nothing below it changes.
+ * When there is no database (no `DATABASE_URL`, the server is down, a table is
+ * missing before its migration ran) the code's copy is served and the error is
+ * logged: the site never goes blank because the CMS did.
+ *
+ * `cache` dedupes the reads within one request — the header, the footer and
+ * the form are asked for by more than one component.
+ */
+import "server-only";
+
+import type { Metadata } from "next";
+import { cache } from "react";
+import { getPayload } from "payload";
+
+import config from "@payload-config";
+import { getServerEnv } from "@/env";
+import { generateMetadata } from "@/utils/seo/generate-page-metadata";
+
+import { TEXT_GLOBALS, type TextGlobalSlug } from "./globals";
+import { SEO_PAGES, SEO_SITE, type SeoPageName } from "./seo";
+import { getSiteStructuredData } from "@/utils/seo/structured-data";
+import { mergeText } from "./text-schema";
+
+/**
+ * Globals that ARE a page (a legal document, say), named after its path. The
+ * legal kit adds its slugs here; the sitemap's `lastmod` reads them.
+ */
+const PAGE_GLOBALS: readonly string[] = [];
+
+/** The text globals, widened — lookups stay typed while the list is still empty. */
+const ENTRIES: readonly { slug: string; base: object }[] = TEXT_GLOBALS;
+
+type TextBase<S extends TextGlobalSlug> = Extract<(typeof TEXT_GLOBALS)[number], { slug: S }>["base"];
+
+/** One saved global, or `undefined` when there is none to be had. */
+export const readGlobal = cache(async (slug: string): Promise<unknown> => {
+  if (!getServerEnv().DATABASE_URL) return undefined;
+  try {
+    const payload = await getPayload({ config });
+    // Depth 1: the SEO global's share images are uploads, read as documents.
+    return await payload.findGlobal({ slug: slug as never, depth: 1 });
+  } catch (error) {
+    console.error(`[cms] "${slug}" unavailable, serving the code's copy`, error);
+    return undefined;
+  }
+});
+
+/** A section's or the chrome's copy — the admin's text over the code's object. */
+export const getText = async <S extends TextGlobalSlug>(slug: S): Promise<TextBase<S>> => {
+  const entry = ENTRIES.find((global) => global.slug === slug);
+  if (!entry) throw new Error(`[cms] unknown global "${slug}"`);
+  const base = entry.base as unknown as TextBase<S>;
+  return mergeText(base, await readGlobal(slug));
+};
+
+type Plain = Record<string, unknown>;
+
+const isRecord = (value: unknown): value is Plain =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const filled = (value: unknown): string | undefined =>
+  typeof value === "string" && value.trim() !== "" ? value.trim() : undefined;
+
+/** An uploaded share image, if the field holds one with a usable URL. */
+const shareImage = (value: unknown) => {
+  if (!isRecord(value)) return undefined;
+  const url = filled(value.url);
+  if (!url) return undefined;
+  const width = typeof value.width === "number" ? value.width : undefined;
+  const height = typeof value.height === "number" ? value.height : undefined;
+  return {
+    url,
+    size: width && height ? { width, height } : undefined,
+    alt: filled(value.alt),
+  };
+};
+
+/** The site-wide values every page's `<head>` shares — the admin's defaults over the code's. */
+const siteDefaults = (saved: unknown) => {
+  const doc = isRecord(saved) ? saved : {};
+  const site = isRecord(doc.site) ? doc.site : {};
+  const twitter = filled(site.twitterHandle);
+  return {
+    doc,
+    siteName: filled(site.siteName) ?? SEO_SITE.siteName,
+    description: filled(site.description) ?? SEO_SITE.description,
+    image: shareImage(site.image),
+    author: filled(site.author) ?? SEO_SITE.author,
+    locale: filled(site.locale) ?? SEO_SITE.locale,
+    ...(twitter ? { twitterHandle: twitter } : {}),
+    logo: shareImage(site.logo)?.url,
+    sameAs: Array.isArray(site.sameAs)
+      ? site.sameAs.flatMap((row: unknown) => (isRecord(row) ? (filled(row.url) ?? []) : []))
+      : [],
+  };
+};
+
+/** A page's canonical address — the admin's over the route's own path. */
+const canonicalOf = (own: Plain, path: string): string => filled(own.canonical) ?? path;
+
+/**
+ * A page's `<head>` — its tab in the SEO global over the site defaults over
+ * the copy in `seo.ts`.
+ */
+export const getPageMetadata = async (page: SeoPageName): Promise<Metadata> => {
+  const entry = SEO_PAGES.find((candidate) => candidate.name === page);
+  if (!entry) throw new Error(`[cms] unknown SEO page "${page}"`);
+  const site = siteDefaults(await readGlobal("seo"));
+  const own = isRecord(site.doc[page]) ? (site.doc[page] as Plain) : {};
+  const image = shareImage(own.image) ?? site.image;
+  return generateMetadata({
+    // The editor writes the whole <title> — what the plugin's length bar counts.
+    title: filled(own.title) ?? entry.title,
+    absoluteTitle: true,
+    description: filled(own.description) ?? entry.description,
+    url: entry.indexable ? canonicalOf(own, entry.path) : undefined,
+    siteName: site.siteName,
+    author: site.author,
+    locale: site.locale,
+    ...(image ? { ogImage: image.url, ogImageSize: image.size, ogImageAlt: image.alt } : {}),
+    ...(site.twitterHandle ? { twitterHandle: site.twitterHandle } : {}),
+    noIndex: !entry.indexable || own.noIndex === true,
+  });
+};
+
+/** The site-wide fallback `<head>` the root layout sets under every page. */
+export const getSiteMetadata = async (): Promise<Metadata> => {
+  const site = siteDefaults(await readGlobal("seo"));
+  // No title: the layout keeps the home title and the `%s · <brand>` template.
+  return generateMetadata({
+    description: site.description,
+    siteName: site.siteName,
+    author: site.author,
+    locale: site.locale,
+    ...(site.image ? { ogImage: site.image.url, ogImageSize: site.image.size, ogImageAlt: site.image.alt } : {}),
+    ...(site.twitterHandle ? { twitterHandle: site.twitterHandle } : {}),
+  });
+};
+
+/** The Organization + WebSite JSON-LD, from the admin's SEO defaults. */
+export const getStructuredData = async () => {
+  const site = siteDefaults(await readGlobal("seo"));
+  return getSiteStructuredData({
+    name: site.siteName,
+    legalName: site.author,
+    description: site.description,
+    ...(site.logo ? { logo: site.logo } : {}),
+    sameAs: site.sameAs,
+  });
+};
+
+/**
+ * When a page's content last changed: the latest `updatedAt` of the globals
+ * that make it — every section's for the home page, a page's own global when
+ * one is named after its path (`/terms` → `terms`), and the SEO global for all. `undefined` when the database is away, so
+ * the sitemap leaves `lastmod` out rather than stamping the request time on
+ * every page, which search engines learn to ignore.
+ */
+const lastModifiedOf = async (path: string): Promise<Date | undefined> => {
+  const own = PAGE_GLOBALS.find((slug) => `/${slug}` === path);
+  const slugs = [
+    "seo",
+    ...(own ? [own] : path === "/" ? ENTRIES.map((global) => global.slug) : []),
+  ];
+  const stamps = (await Promise.all(slugs.map((slug) => readGlobal(slug))))
+    .map((doc) => (isRecord(doc) && typeof doc.updatedAt === "string" ? Date.parse(doc.updatedAt) : NaN))
+    .filter((time) => !Number.isNaN(time));
+  return stamps.length > 0 ? new Date(Math.max(...stamps)) : undefined;
+};
+
+/**
+ * The pages `sitemap.xml` lists: every indexable route the admin has not
+ * hidden, at its canonical address when the editor set an absolute one.
+ */
+export const getSitemapPages = async (): Promise<
+  { path: string; url?: string; lastModified?: Date }[]
+> => {
+  const site = siteDefaults(await readGlobal("seo"));
+  const pages = SEO_PAGES.flatMap((entry) => {
+    if (!entry.indexable) return [];
+    const own = isRecord(site.doc[entry.name]) ? (site.doc[entry.name] as Plain) : {};
+    if (own.noIndex === true) return [];
+    const canonical = canonicalOf(own, entry.path);
+    return [canonical.startsWith("/") ? { path: canonical } : { path: entry.path, url: canonical }];
+  });
+  return Promise.all(
+    pages.map(async (page) => ({ ...page, lastModified: await lastModifiedOf(page.path) })),
+  );
+};

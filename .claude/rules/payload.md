@@ -1,34 +1,41 @@
 ---
 paths:
   - "src/payload.config.ts"
-  - "payload.config.ts"
-  - "src/collections/**"
+  - "src/cms/**"
   - "src/app/(payload)/**"
+  - "src/app/(site)/**"
+  - "src/layouts/site-document.tsx"
   - "src/payload-types.ts"
+  - "src/migrations/**"
 description: Payload CMS conventions in this Next.js app
 ---
 
 # Payload CMS
 
-Full note: `obsidian/backend/cms-payload.md` · Setup playbook: the `payload-cms` skill
+Full note: `obsidian/backend/cms-payload.md` · Flow: `obsidian/workflows/cms-admin.md`
+· Skills: `payload-cms` (core), `payload-admin` (look + guide), `payload-analytics`
 
-- Payload runs **inside this Next.js app** — no separate service. Admin UI lives
-  under the `src/app/(payload)/` route group; the site lives in `src/app/` as normal.
-- **`src/payload-types.ts` is generated** — never hand-edit it. Run
-  `yarn payload generate:types` after any collection or field change.
-- **The schema is the contract.** Adding a field to a collection means: update the
-  collection → `generate:types` → `generate:migrations` → use the generated type
-  in the view. Never cast Payload data to a hand-written interface.
-- **Content flows through props.** Views receive Payload data as props from a
-  Server Component; presentational components stay pure and unaware of the CMS
-  (`obsidian/frontend/component-conventions.md`).
-- Fetch with the **Local API** (`getPayload({ config })`) in Server Components —
-  it queries the database directly, no HTTP hop. Do not call the REST API from
-  your own server code.
-- After changing the config: `yarn payload generate:importmap` if you added a
-  custom admin component.
-- **Never point local development at the production database** — schema push will
-  rewrite it. Use a separate Supabase project or branch for dev.
-
-Media uploads go to Supabase Storage via `@payloadcms/storage-s3` with
-`forcePathStyle: true`. Do not commit uploaded media to the repo.
+- Payload runs **inside this app**: `app/(payload)` (admin + its API) beside
+  `app/(site)`; two root layouts, so unmatched URLs render `app/global-not-found.tsx`
+  in `layouts/site-document.tsx`.
+- **The code's content object is the contract.** Copy lives in `src/data/mocks/`;
+  `cms/text-schema.ts` derives the fields from it; views read
+  `await getText("slug")`, which returns **the mock's own type** with the admin's
+  strings laid over it. Never hand-write a field for copy a mock already has,
+  never cast Payload data to an interface.
+- **Blank, missing or DB down → the code's copy.** Never let a CMS read throw
+  into a view; read through `src/cms/content.ts` only (Local API, never the REST
+  API from server code).
+- **Wiring stays in code** — add new wiring keys to `SKIP`; card lists keep fixed
+  rows unless named in `OPEN_LISTS` with a reason.
+- **Routes stay static**; every global's `afterChange` revalidates. Pages import
+  only views — metadata comes through the view (`getXMetadata`).
+- **Schema change** → `yarn generate:types` → `yarn migrate:direct create <name>`
+  → `yarn migrate:direct`. `push: false` everywhere. Commit `payload-types.ts`,
+  `migrations/`, `importMap.js` (generated — never hand-edit).
+- **Node ≥ 22** for every Payload CLI call — on 20.17 it exits 0 and does nothing.
+- New admin component → `yarn generate:importmap`.
+- The admin skin (`(payload)/custom.css`) takes colours only from its Tier 1
+  `--admin-*` block; no transitions or animation added.
+- **Never point local development at the production database** without the
+  owner's explicit choice, recorded in an ADR.

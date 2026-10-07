@@ -1,6 +1,6 @@
 ---
 tags: [meta, changelog]
-updated: 2026-10-06
+updated: 2026-10-07
 ---
 
 # Changelog
@@ -15,6 +15,22 @@ remembering. Routine commits do not need an entry.
 For *why* the conventions are what they are, see [[decisions-log]].
 
 ---
+
+## 2026-10-07
+
+**CMS admin flow — `/cms`, three skills, copy-ready kits.** The Payload admin
+built for a production site (every string editable, SEO per page with a link
+preview, the site's look, consented analytics, an editor's guide with
+screenshots) is now the starter's default way to add a CMS. New:
+`obsidian/workflows/cms-admin.md`; skills `payload-admin` and
+`payload-analytics`; `payload-cms` rewritten around decisions D1–D16 with
+`references/` (content model, Supabase wiring, SEO global, legal rich text) and
+`templates/` kits (`core`, `admin`, `analytics`, `guide`, `legal`) copied by
+`scaffold.sh`; `tools/qa/admin-shots.mjs` (`yarn qa:shots`). Changed:
+`generateMetadata` gains `absoluteTitle` / `ogImageSize` / `noIndex` / `locale`
+and `getSiteStructuredData` takes overrides (both default to `siteConfig`);
+`verify.sh` skips Payload's generated types and admin routes; rule `payload.md`
+and [[cms-payload]] rewritten. Reasoning: [[decisions-log]] ADR-0027.
 
 ## Baseline — built from `next16-claude-starter` v0.1.0
 

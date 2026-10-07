@@ -1,0 +1,142 @@
+// ⚠️ ADAPT, DO NOT COPY BLIND — written against a project whose legal mocks were
+// `LegalDocument { sections: { title, short, anchor, summary, blocks: LegalBlock[] } }`
+// with block kinds paragraph / list / table / preferences. Map `toRichText` and
+// `fromLegal` onto THIS project's legal mock shape (the starter ships
+// `{ heading, body: string[] }` sections — paragraphs only). Playbook:
+// `.claude/skills/payload-cms/references/legal-rich-text.md`.
+// 📖 Docs: obsidian/frontend/components/layout.md → Legal pages
+/**
+ * A legal section's rich text, in the page's own type. A Server
+ * Component: Payload's converter walks the saved Lexical state and each node
+ * comes out as the element the page styled by hand before — muted copy with
+ * ink-coloured bold, the site's `TextLink`, the accent-dot bullets, and the
+ * framed table. Nothing animates: a policy is read, not presented.
+ */
+import type { SerializedBlockNode } from "@payloadcms/richtext-lexical";
+import { RichText, type JSXConvertersFunction } from "@payloadcms/richtext-lexical/react";
+
+import { TextLink } from "@/components/ui";
+import type { LegalBody } from "@/cms/legal-rich-text";
+
+import { CookiePreferencesButton } from "./cookie-preferences-button";
+
+interface Line {
+  text?: string | null;
+}
+
+interface TableFields {
+  blockType: "table";
+  caption?: string | null;
+  columns?: Line[] | null;
+  rows?: { cells?: Line[] | null }[] | null;
+}
+
+interface PreferencesFields {
+  blockType: "preferences";
+  label?: string | null;
+}
+
+const words = (lines: Line[] | null | undefined): string[] =>
+  (lines ?? []).flatMap(({ text }) => (text ? [text] : []));
+
+const Table = ({ fields }: { fields: TableFields }) => {
+  const columns = words(fields.columns);
+  const body = (fields.rows ?? []).map((row) => words(row.cells));
+  if (columns.length === 0) return null;
+
+  return (
+    // Wider than a phone's column: the table scrolls inside its own frame.
+    <div className="overflow-x-auto rounded-panel border border-border-grid bg-surface-panel">
+      <table className="w-full min-w-copy border-collapse text-left text-body leading-copy">
+        {fields.caption ? <caption className="sr-only">{fields.caption}</caption> : null}
+        <thead>
+          <tr className="border-b border-border-grid">
+            {columns.map((column, index) => (
+              <th key={index} scope="col" className="px-5 py-4 font-medium text-ink">
+                {column}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {body.map(([name, ...cells], rowIndex) => (
+            <tr key={rowIndex} className="border-b border-border-grid last:border-b-0">
+              <th scope="row" className="whitespace-nowrap px-5 py-4 align-top font-medium text-accent">
+                <code>{name}</code>
+              </th>
+              {cells.map((cell, index) => (
+                <td key={index} className="px-5 py-4 align-top text-ink-muted">
+                  {cell}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+/** Leaves the site: an absolute address on another host. `mailto:` and `/path` stay in. */
+const isExternal = (href: string): boolean => /^https?:\/\//i.test(href);
+
+const converters: JSXConvertersFunction = ({ defaultConverters }) => ({
+  ...defaultConverters,
+  paragraph: ({ node, nodesToJSX }) =>
+    node.children.length > 0 ? <p>{nodesToJSX({ nodes: node.children })}</p> : null,
+  heading: ({ node, nodesToJSX }) => (
+    <h3 className="pt-2 text-lead font-medium leading-tight text-ink">
+      {nodesToJSX({ nodes: node.children })}
+    </h3>
+  ),
+  link: ({ node, nodesToJSX }) => {
+    const href = node.fields.url ?? "";
+    const children = nodesToJSX({ nodes: node.children });
+    return href ? (
+      <TextLink href={href} external={node.fields.newTab || isExternal(href)}>
+        {children}
+      </TextLink>
+    ) : (
+      <>{children}</>
+    );
+  },
+  list: ({ node, nodesToJSX }) => {
+    const children = nodesToJSX({ nodes: node.children });
+    return node.listType === "number" ? (
+      <ol className="flex list-decimal flex-col gap-3 pl-6 marker:text-accent">{children}</ol>
+    ) : (
+      <ul className="flex flex-col gap-3">{children}</ul>
+    );
+  },
+  listitem: ({ node, nodesToJSX, parent }) => {
+    const children = nodesToJSX({ nodes: node.children });
+    const numbered = "listType" in parent && parent.listType === "number";
+    const nested = node.children.some((child) => child.type === "list");
+    if (numbered || nested) return <li className={nested ? "list-none" : undefined}>{children}</li>;
+    return (
+      <li className="flex gap-3">
+        {/* Centred on the first line: half a line box, less half the marker. */}
+        <span aria-hidden className="mt-[0.55em] size-marker shrink-0 rounded-marker bg-accent" />
+        <span>{children}</span>
+      </li>
+    );
+  },
+  blocks: {
+    table: ({ node }: { node: SerializedBlockNode<TableFields> }) => <Table fields={node.fields} />,
+    preferences: ({ node }: { node: SerializedBlockNode<PreferencesFields> }) =>
+      node.fields.label ? (
+        <div>
+          <CookiePreferencesButton label={node.fields.label} />
+        </div>
+      ) : null,
+  },
+});
+
+export const LegalRichText = ({ body }: { body: LegalBody }) => (
+  <RichText
+    data={body}
+    converters={converters}
+    disableContainer
+    className="[&_em]:italic [&_strong]:font-semibold [&_strong]:text-ink"
+  />
+);

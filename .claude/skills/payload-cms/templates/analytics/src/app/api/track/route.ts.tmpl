@@ -1,0 +1,62 @@
+import type { NextRequest } from "next/server";
+import { z } from "zod";
+
+import { MAX_DURATION_S, recordDuration, recordView, type RequestFacts } from "@/cms/analytics";
+import { handle } from "@/lib/api";
+
+/**
+ * The page-view beacon — what `components/common/analytics-beacon.tsx` posts
+ * to, and only for a visitor who allowed analytics.
+ *
+ * Two messages on one route:
+ * - `{ path, referrer }` when a page opens → records a view, returns its `id`;
+ * - `{ id, seconds }` when the visitor leaves it → writes the time the page
+ *   was visible, once, and only for the same visitor's view.
+ *
+ * Everything else is read here from the request and reduced before it is
+ * stored — the IP and user agent become a one-day hash, a device class, a
+ * browser and a system name, and are not kept. A browser that sends Do Not
+ * Track or Global Privacy Control is not counted even with consent given.
+ */
+const messageSchema = z.union([
+  z.object({
+    path: z.string().trim().startsWith("/").max(300),
+    referrer: z.string().trim().max(500).optional().default(""),
+  }),
+  z.object({
+    id: z.union([z.string().max(64), z.number().int().nonnegative()]),
+    seconds: z.number().min(0).max(MAX_DURATION_S * 10),
+  }),
+]);
+
+const factsOf = (req: NextRequest): RequestFacts => ({
+  ip:
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    req.headers.get("x-real-ip") ??
+    "",
+  userAgent: req.headers.get("user-agent") ?? "",
+  host: req.headers.get("host") ?? "",
+  acceptLanguage: req.headers.get("accept-language") ?? "",
+  // Set by Vercel or Cloudflare at the edge; absent locally, where the
+  // country is guessed from the browser language and marked approximate.
+  edgeCountry:
+    req.headers.get("x-vercel-ip-country") ?? req.headers.get("cf-ipcountry") ?? undefined,
+});
+
+export const POST = handle(async (req) => {
+  const message = messageSchema.parse(await req.json());
+
+  if (req.headers.get("dnt") === "1" || req.headers.get("sec-gpc") === "1") {
+    return { counted: false };
+  }
+
+  if ("seconds" in message) {
+    return { counted: await recordDuration(message.id, message.seconds, factsOf(req)) };
+  }
+
+  const id = await recordView(
+    { path: message.path, referrer: message.referrer || undefined },
+    factsOf(req),
+  );
+  return { counted: id !== null, id };
+});

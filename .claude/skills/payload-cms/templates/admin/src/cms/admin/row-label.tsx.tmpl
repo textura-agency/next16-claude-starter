@@ -1,0 +1,37 @@
+"use client";
+// 📖 Docs: obsidian/backend/cms-payload.md
+/**
+ * An admin array row named by its own copy — "Design & ID", "Wireless
+ * carriers" — instead of Payload's "Row 03", so a collapsed list of cards reads
+ * like the section it edits.
+ */
+import { useRowLabel } from "@payloadcms/ui";
+
+type Row = Record<string, unknown>;
+
+/** The first field that reads as the row's name. */
+const NAME_KEYS = ["title", "name", "label", "text", "lead", "kicker", "lines"] as const;
+
+const nameOf = (row: Row | undefined): string | undefined => {
+  if (!row) return undefined;
+  for (const key of NAME_KEYS) {
+    const value = row[key];
+    if (typeof value === "string" && value.trim() !== "") return value;
+    // A string list (a card's two-line title, a contact's lines) — its first row.
+    if (Array.isArray(value)) {
+      const first: unknown = value[0];
+      if (typeof first === "object" && first !== null && "text" in first) {
+        const text = (first as { text: unknown }).text;
+        if (typeof text === "string" && text.trim() !== "") return text;
+      }
+    }
+  }
+  return undefined;
+};
+
+export const RowLabel = () => {
+  const { data, rowNumber } = useRowLabel<Row>();
+  const name = nameOf(data);
+  const number = String((rowNumber ?? 0) + 1).padStart(2, "0");
+  return <span>{name ? `${number} · ${name}` : number}</span>;
+};

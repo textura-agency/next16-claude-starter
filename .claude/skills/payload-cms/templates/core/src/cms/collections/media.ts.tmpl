@@ -1,0 +1,32 @@
+// 📖 Docs: obsidian/backend/cms-payload.md
+import type { CollectionConfig } from "payload";
+
+/**
+ * Uploaded images. Every one carries alt text — hard rule #10 — so the admin
+ * refuses an image without it. Files go to Supabase Storage when the `S3_*`
+ * env is set, `/media` on disk otherwise (`cms-payload.md`).
+ *
+ * `small` is a 512px WebP of every upload: what a WebGL texture or a thumbnail
+ * reads (`text-schema.ts` → `withPhoto`), so a replaced photo never puts a
+ * full-size file on the loader's path. Add a size only for a slot that draws
+ * at a fixed size; `next/image` resizes everything else.
+ */
+export const Media: CollectionConfig = {
+  slug: "media",
+  labels: { singular: "File", plural: "Media" },
+  admin: { group: "Settings" },
+  access: { read: () => true },
+  upload: {
+    staticDir: "media",
+    mimeTypes: ["image/*"],
+    imageSizes: [{ name: "small", width: 512, formatOptions: { format: "webp", options: { quality: 82 } } }],
+  },
+  fields: [
+    {
+      name: "alt",
+      type: "text",
+      label: "Image description (alt)",
+      required: true,
+    },
+  ],
+};

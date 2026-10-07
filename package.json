@@ -21,6 +21,7 @@
     "qa:still": "node tools/qa/capture-still.mjs",
     "qa:brand": "node tools/qa/brand-kit.mjs",
     "qa:webkit": "node tools/qa/webkit-probe.mjs",
+    "qa:shots": "node tools/qa/admin-shots.mjs",
     "verify": "bash .claude/scripts/verify.sh"
   },
   "dependencies": {

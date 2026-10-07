@@ -1,0 +1,63 @@
+// 📖 Docs: obsidian/backend/cms-payload.md
+/**
+ * The SEO global's data — every page it covers, with the copy each starts
+ * from, and the site's defaults. Plain values, no Payload: `seo.ts` builds the
+ * admin fields from them, `content.ts` serves them when a field is blank or
+ * the database is away, and the admin's link preview
+ * (`admin/share-preview.tsx`) shows them in the browser.
+ */
+import { siteConfig } from "@/lib/site";
+
+/** The site's defaults — used where a page leaves a field blank. */
+export const SEO_SITE = {
+  siteName: siteConfig.name,
+  description: siteConfig.description,
+  twitterHandle: "",
+  author: siteConfig.author,
+  locale: siteConfig.locale,
+  /** The default share image — `public/open-graph.png`, the designed card. */
+  image: siteConfig.ogImage,
+  /** The organisation's logo in the JSON-LD — the app icon. */
+  logo: "/android-icon-192x192.png",
+};
+
+/**
+ * Every page the SEO global covers, with the copy it starts from. One entry
+ * per route in `src/app` (+ the 404). PROJECT CONFIG — write each title and
+ * description FOR SEARCH, not lifted from the page's headline:
+ * - title 50–60 characters, opening on the brand ("Brand | What it is") —
+ *   the plugin's bar turns red outside that;
+ * - description 100–150 characters that say what the reader gets;
+ * - `name` is the tab's field name (camelCase), `path` the route.
+ * A new route = an entry here + a migration (`yarn migrate:direct create`).
+ */
+export const SEO_PAGES = [
+  {
+    name: "home",
+    label: "Home",
+    path: "/",
+    indexable: true,
+    title: "TODO: Brand | What the Company Does, in Searchable Words",
+    description:
+      "TODO: what a visitor gets from this site, in one sentence of 100–150 characters, with the words people search for.",
+  },
+  {
+    name: "privacyPolicy",
+    label: "Privacy Policy",
+    path: "/privacy-policy",
+    indexable: true,
+    title: "TODO: Brand | Privacy Policy — How We Handle Your Data",
+    description:
+      "TODO: how the company collects, uses and protects personal information on this site, and the choices a visitor has.",
+  },
+  {
+    name: "notFound",
+    label: "404 page",
+    path: "/404",
+    indexable: false,
+    title: "TODO: Brand | Page Not Found",
+    description: "TODO: the link may be broken or the page has moved — everything else is one step away on the home page.",
+  },
+] as const;
+
+export type SeoPageName = (typeof SEO_PAGES)[number]["name"];

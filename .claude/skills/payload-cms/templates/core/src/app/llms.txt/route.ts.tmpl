@@ -1,0 +1,47 @@
+// 📖 Docs: obsidian/frontend/seo-metadata.md
+/**
+ * `/llms.txt` — a plain-markdown map of the site for language models
+ * (llmstxt.org). Built from the same sources as the page metadata and the
+ * sitemap — the admin's SEO global — so it can never list a page the sitemap
+ * does not, or describe one differently. Lighthouse's Agentic Browsing audit
+ * scores it once it exists.
+ *
+ * PROJECT CONFIG: the "On the home page" list — read the header's menu copy
+ * with `getText("header")` and list its anchors, if the site has one.
+ */
+import { getPageMetadata, getSitemapPages } from "@/cms/content";
+import { SEO_PAGES } from "@/cms/seo-pages";
+import { siteConfig } from "@/lib/site";
+
+/** Rebuilt at most hourly; an admin save drops it with the rest (`globals.ts`). */
+export const revalidate = 3600;
+
+export const GET = async (): Promise<Response> => {
+  const [pages, home] = await Promise.all([getSitemapPages(), getPageMetadata("home")]);
+  const origin = siteConfig.url;
+  const absolute = (path: string) => (path.startsWith("http") ? path : `${origin}${path}`);
+
+  const core = await Promise.all(
+    pages.map(async ({ path, url }) => {
+      const entry = SEO_PAGES.find((page) => page.path === path);
+      if (!entry) return null;
+      const meta = await getPageMetadata(entry.name);
+      return `- [${entry.label}](${url ?? absolute(path)}): ${meta.description ?? ""}`;
+    }),
+  );
+
+  const body = [
+    `# ${siteConfig.name}`,
+    "",
+    `> ${home.description ?? siteConfig.description}`,
+    "",
+    "## Core pages",
+    "",
+    ...core.filter((line): line is string => line !== null),
+    "",
+  ].join("\n");
+
+  return new Response(body, {
+    headers: { "Content-Type": "text/plain; charset=utf-8" },
+  });
+};

@@ -1,0 +1,87 @@
+// 📖 Docs: obsidian/backend/cms-payload.md
+/**
+ * The admin's globals — one per section of the page, one per piece of site
+ * chrome, one per document — and the copy each one starts from.
+ *
+ * A global, not a collection: every section exists exactly once, so there is
+ * nothing to list or create, and the sidebar reads as the site does, top to
+ * bottom. The fields are derived from the code's own content object
+ * (`text-schema.ts`), so a new line of copy in code is a new field here on the
+ * next deploy, with its current text as the default.
+ *
+ * FILL `TEXT_GLOBALS` from `src/data/mocks/**`: one entry per content object a
+ * view reads, in the order a visitor meets it. The `note` is the editor's
+ * one-line answer to "what is this screen?" — and any rule worth knowing
+ * before pressing Save (a count the layout depends on, a link set in code).
+ */
+import { revalidatePath } from "next/cache";
+import type { GlobalConfig } from "payload";
+
+// TODO: the content objects the views read today, e.g.
+// import { HERO, FEATURES, FOOTER, NAV } from "@/data/mocks/home";
+// import { NOT_FOUND } from "@/data/mocks/not-found";
+
+import { seoGlobal } from "./seo";
+import { fieldsOf } from "./text-schema";
+
+/** Sidebar groups, in the order the site reads. */
+export const GROUP = {
+  home: "Home page",
+  site: "Site",
+  documents: "Pages & documents",
+} as const;
+
+/**
+ * Every text global: its slug, where it sits, and the object it edits. The
+ * slug is also the key `content.ts` reads it back by. Number the home page's
+ * sections ("1 · Hero") so the sidebar is the scroll order.
+ */
+export const TEXT_GLOBALS = [
+  // { slug: "hero", label: "1 · Hero", group: GROUP.home, base: HERO,
+  //   note: "The first screen: headline, description and buttons." },
+  // { slug: "features", label: "2 · Features", group: GROUP.home, base: FEATURES,
+  //   note: "Three cards. Their icons are set in code." },
+  // { slug: "header", label: "Header & menu", group: GROUP.site, base: { items: NAV },
+  //   note: "Menu labels. Where each link points is set in code." },
+  // { slug: "footer", label: "Footer", group: GROUP.site, base: FOOTER,
+  //   note: "Contacts, link columns and copyright." },
+  // { slug: "not-found", label: "404 page", group: GROUP.documents, base: NOT_FOUND,
+  //   note: "The screen for addresses that don't exist." },
+] as const satisfies readonly {
+  slug: string;
+  label: string;
+  group: (typeof GROUP)[keyof typeof GROUP];
+  base: object;
+  note: string;
+}[];
+
+export type TextGlobalSlug = (typeof TEXT_GLOBALS)[number]["slug"];
+
+/**
+ * A save shows on the site at once: the routes are static (hard rule #15), so
+ * every save drops the whole cache and the next request re-renders.
+ */
+export const revalidate: NonNullable<NonNullable<GlobalConfig["hooks"]>["afterChange"]>[number] = () => {
+  try {
+    revalidatePath("/", "layout");
+  } catch {
+    // Saved outside a Next request — a script, a seed or a migration via the
+    // Local API. There is no cache to drop there; the next build reads fresh.
+  }
+};
+
+// Order is the sidebar's: Payload lists groups by their first global, so the
+// home page's sections lead and SEO joins the site chrome after them.
+export const globals: GlobalConfig[] = [
+  ...TEXT_GLOBALS.map(
+    ({ slug, label, group, base, note }): GlobalConfig => ({
+      slug,
+      label,
+      admin: { group, description: note },
+      fields: fieldsOf(base as unknown as Record<string, unknown>),
+      hooks: { afterChange: [revalidate] },
+    }),
+  ),
+  // The legal kit adds `...LEGAL_GLOBALS.map(…)` here (legal.ts).
+  seoGlobal([revalidate]),
+];

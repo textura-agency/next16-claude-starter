@@ -1,6 +1,6 @@
 ---
 tags: [workflow, ai, stable]
-updated: 2026-10-06
+updated: 2026-10-07
 ---
 
 # The Agent Harness (`.claude/`)
@@ -50,7 +50,7 @@ tools/qa/              # browser tools: Lighthouse, scroll test, phone probes, a
 | `routing-views.md` | `src/app/`, `src/views/` | route→view delegation, server-first, `proxy.ts` |
 | `api-env.md` | `src/app/api/`, `src/lib/api/`, `env.ts` | server-side calls, secrets, zod, envelope |
 | `engine-protected.md` | the animation engine | do-not-modify |
-| `payload.md` | Payload config & collections | generated types, Local API, migrations |
+| `payload.md` | Payload config, `src/cms/`, `(payload)`, `(site)`, migrations | derived fields + merge, static routes, migrations, Node ≥ 22 |
 | `supabase.md` | Supabase clients, `proxy.ts` | connection strings, keys, RLS |
 | `scenes.md` | scene / canvas / WebGL files | large-viewport box, width-only resize, dt-scaled motion, no phone frame cap, context recovery |
 | `seo-robot.md` | `src/app/`, `proxy.ts`, views, `lib/site.ts` | static routes, robot form, origin, no empty `loading.tsx`, no placeholders |
@@ -62,7 +62,9 @@ tools/qa/              # browser tools: Lighthouse, scroll test, phone probes, a
 |-------|-------------|------|
 | `qa-verify` | after any UI work, before committing | [[qa-verification]] |
 | `figma-to-section` | a Figma URL or frame arrives | [[figma-to-code]] |
-| `payload-cms` | adding/changing the CMS | [[cms-payload]] |
+| `payload-cms` | adding/changing the CMS — the flow, the kits (`scaffold.sh`) | [[cms-admin]] · [[cms-payload]] |
+| `payload-admin` | the admin's look (skin from site tokens) and the editor's guide | [[cms-admin]] |
+| `payload-analytics` | consented, self-hosted analytics in the admin | [[cms-admin]] |
 | `supabase-db` | database, migrations, RLS | [[database-supabase]] |
 | `supabase-auth` | the project needs real user accounts | [[database-supabase]] |
 | `seo-audit` | SEO health check or launch prep | [[seo-aeo]] |
@@ -108,6 +110,7 @@ measured history of 50+ sites built from this starter.
 | — | `capture-still.mjs` | the scene's still (robot form, share card, phone stills) |
 | `qa:brand` | `brand-kit.mjs` | favicon set, manifest, 1200 × 630 share image, head check |
 | `qa:webkit` | `webkit-probe.mjs` | the probes in WebKit with an iPhone profile |
+| `qa:shots` | `admin-shots.mjs` | the site's screens for the CMS editor's guide (1200 px WebP) |
 
 Flags and setup: `tools/qa/README.md`. All take `--url` of a running `next start`.
 

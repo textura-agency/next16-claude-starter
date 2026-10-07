@@ -1,6 +1,6 @@
 ---
 tags: [meta, decision]
-updated: 2026-10-06
+updated: 2026-10-07
 ---
 
 # Decisions Log (ADRs)
@@ -14,6 +14,58 @@ decisions on top, continuing the numbering. Amending an inherited decision is
 fine; write a new ADR that says so rather than editing the old one.
 
 Template: [[templates/adr-note]].
+
+---
+
+## ADR-0027 — The CMS admin is a flow with kits: derived fields, merged reads, SEO per page, the site's look, a guide
+
+**Status:** Accepted · 2026-10-07 · extends ADR-0020 (Payload + Supabase)
+
+**Context.** ADR-0020 chose Payload but left the admin to be designed per
+project. On a production site built from this starter, the owner's admin grew
+over ~twenty requests: "every text on the site, grouped sensibly" → "SEO per
+page, with images and links like the site has" → "it hurts the eyes, make it in
+the site's style" → "light analytics: who came, how long, from where" → "photos
+too" → "let me change how many cards, but not break it" → "bold and links in
+the privacy policy" → "documentation inside the admin, with screenshots". Each
+landed; together they made an admin the owner called great. Each also cost a
+round-trip that the next site doesn't need to pay.
+
+**Decision.** The admin is built by one flow ([[cms-admin]], `/cms`) from
+copy-ready kits (`.claude/skills/payload-cms/templates/`, scaffolded by
+`scaffold.sh`) under three skills — `payload-cms` (core, content model, SEO,
+migrations, proof), `payload-admin` (skin + guide), `payload-analytics`. Its
+architecture:
+- **Fields are derived from the content objects** in `src/data/mocks/`; wiring
+  keys are skipped; card lists have fixed rows unless opened with a floor the
+  layout can carry.
+- **Reads merge the admin's strings over the code's object and return its type**
+  — a deliberate exception to "use the generated type in the view": views and
+  components don't change, and blank / never-saved / unreachable falls back to
+  the code's copy.
+- **Globals, not blocks**, for choreographed marketing pages.
+- **One SEO global, a tab per page**, with parity to everything `<head>`,
+  JSON-LD and the sitemap emit, a link preview, and the share card seeded into
+  Media. The starter's `generateMetadata` gains `absoluteTitle`, `ogImageSize`,
+  `noIndex`, `locale`; `getSiteStructuredData` takes overrides — both default to
+  `siteConfig`, so non-CMS projects are unaffected.
+- **Routes stay static**; saves revalidate. Pages still import only views.
+- **The admin wears the site's tokens** (one Tier 1 block in `custom.css`), calm,
+  light, no added motion; sidebar in reading order; an editor's guide in the
+  admin with the site's screens (`yarn qa:shots`).
+- **Analytics are optional, consent-gated, cookieless and self-hosted.**
+- **Legal text is rich text** from the start.
+
+**Why.** Every item was a real request or defect; writing them as defaults turns
+twenty iterations into one pass, and the merge model is what keeps a CMS from
+ever taking the site down.
+
+**Consequences.** `verify.sh` skips `src/payload-types.ts` and the `(payload)`
+routes. The kits were scaffolded into a copy of the starter and typechecked,
+linted, verified (0 FAIL) and built with Payload 3.89. Payload's admin class
+names are not a public API — the skin is re-checked on every Payload upgrade
+([[cms-admin]]). The kits drift from Payload over time: re-verify them when the
+pinned version moves.
 
 ---
 

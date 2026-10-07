@@ -1,6 +1,6 @@
 ---
 tags: [architecture, stable]
-updated: 2026-09-30
+updated: 2026-10-07
 ---
 
 # Tech Stack
@@ -102,14 +102,16 @@ only when a project needs them (ADR-0020):
 
 | Need | Choice | Playbook |
 |------|--------|----------|
-| CMS | Payload (in-app, Next-native) | [[cms-payload]] · `/cms` |
+| CMS | Payload (in-app, Next-native) + `@payloadcms/plugin-seo`, `storage-s3`, `richtext-lexical` | [[cms-admin]] · [[cms-payload]] · `/cms` |
 | Database | Supabase Postgres | [[database-supabase]] · `/db` |
 | File storage | Supabase Storage (S3-compatible) | [[cms-payload]] |
 | Auth | Supabase Auth (`@supabase/ssr`) — only with real user accounts | [[database-supabase]] |
 
-> [!note] Payload compatibility — satisfied as of 2026-08-18
-> `@payloadcms/next` 3.88 peer-requires `next >=16.2.6 <17`. The starter is on
-> `16.3.7`, so it now satisfies that range. Re-check when either side moves.
+> [!note] Payload compatibility — verified 2026-10-07
+> The kits are proven on Payload **3.89** (`next >=16.2.6 <17`; 3.90 wants
+> ≥ 16.3.3). The starter is on `16.3.7`. Pin every `@payloadcms/*` + `payload` to
+> one exact version, and run the Payload CLI on **Node ≥ 22** (on 20.17 it exits
+> 0 and does nothing). Re-check when either side moves.
 
 Still undecided: payments, i18n, data-fetching libraries, testing. Document here
 when adopted and add an ADR to [[decisions-log]].

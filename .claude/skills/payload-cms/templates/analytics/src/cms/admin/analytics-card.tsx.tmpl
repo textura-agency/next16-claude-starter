@@ -1,0 +1,24 @@
+// 📖 Docs: obsidian/backend/cms-payload.md → Analytics
+/** The dashboard's glance at the last seven days, with the way into the full view. */
+import Link from "next/link";
+
+import { readStats } from "@/cms/analytics";
+
+import { Kpis } from "./analytics-ui";
+
+export const AnalyticsCard = async () => {
+  const stats = await readStats(7);
+  return (
+    <section className="ca-card" aria-labelledby="ca-card-title">
+      <div className="ca-card__head">
+        <h2 id="ca-card-title" className="ca-card__title">
+          Last 7 days
+        </h2>
+        <Link className="ca-card__link" href="/admin/analytics">
+          Full analytics →
+        </Link>
+      </div>
+      <Kpis stats={stats} compact />
+    </section>
+  );
+};

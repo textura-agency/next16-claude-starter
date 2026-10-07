@@ -1,0 +1,142 @@
+// 📖 Docs: obsidian/backend/cms-payload.md → Analytics
+/**
+ * The pieces the Analytics view and the dashboard card are built from — plain
+ * server-rendered markup, styled in `app/(payload)/custom.css` (`.ca-*`).
+ * The chart is its own client leaf (`analytics-chart.tsx`).
+ */
+import type { AnalyticsStats, Ranked } from "@/cms/analytics";
+
+import { duration } from "./format";
+
+const format = new Intl.NumberFormat("en-US");
+const countryName = new Intl.DisplayNames(["en"], { type: "region" });
+const languageName = new Intl.DisplayNames(["en"], { type: "language" });
+
+/** A country's English name. Its code rides beside it as a badge — Windows
+    draws no flag emoji, only the two letters. */
+export const countryLabel = (code: string): string => {
+  try {
+    return countryName.of(code) ?? code;
+  } catch {
+    return code;
+  }
+};
+
+export const languageLabel = (code: string): string => {
+  try {
+    return languageName.of(code) ?? code;
+  } catch {
+    return code;
+  }
+};
+
+/** "+12%" against the period before, or nothing when there is no baseline. */
+const change = (now: number, before: number): string | null => {
+  if (before === 0) return now > 0 ? "new" : null;
+  const delta = Math.round(((now - before) / before) * 100);
+  return `${delta > 0 ? "+" : ""}${delta}%`;
+};
+
+interface Kpi {
+  label: string;
+  value: string;
+  delta: string | null;
+  /** Bounce rate: up is worse. */
+  invert?: boolean;
+  live?: boolean;
+}
+
+export const Kpis = ({ stats, compact = false }: { stats: AnalyticsStats; compact?: boolean }) => {
+  const items: Kpi[] = [
+    { label: "Visitors", value: format.format(stats.visitors), delta: change(stats.visitors, stats.previous.visitors) },
+    { label: "Page views", value: format.format(stats.views), delta: change(stats.views, stats.previous.views) },
+    {
+      label: "Avg. time on page",
+      value: duration(stats.avgSeconds),
+      delta: change(stats.avgSeconds, stats.previous.avgSeconds),
+    },
+    {
+      label: "Bounce rate",
+      value: `${Math.round(stats.bounceRate * 100)}%`,
+      delta: change(stats.bounceRate, stats.previous.bounceRate),
+      invert: true,
+    },
+    { label: "On the site now", value: format.format(stats.liveVisitors), delta: null, live: true },
+  ];
+  return (
+    <dl className={`ca-kpis${compact ? " ca-kpis--compact" : ""}`}>
+      {items.map((item) => {
+        const down = item.delta?.startsWith("-") ?? false;
+        const good = item.invert ? down : !down;
+        return (
+          <div key={item.label} className="ca-kpi">
+            <dt className="ca-kpi__label">
+              {item.live ? <span className="ca-live" aria-hidden /> : null}
+              {item.label}
+            </dt>
+            <dd className="ca-kpi__value">{item.value}</dd>
+            {item.delta ? (
+              <dd className={`ca-kpi__delta ${good ? "is-good" : "is-bad"}`}>
+                {item.delta} <span>vs previous {stats.days} days</span>
+              </dd>
+            ) : null}
+          </div>
+        );
+      })}
+    </dl>
+  );
+};
+
+export const RankList = ({
+  title,
+  items,
+  empty,
+  note,
+  label = (value) => value,
+  badge,
+  showTime = false,
+}: {
+  title: string;
+  items: Ranked[];
+  empty: string;
+  note?: string;
+  label?: (value: string) => string;
+  /** A short code shown before the label — the country's two letters. */
+  badge?: (value: string) => string;
+  showTime?: boolean;
+}) => {
+  const max = Math.max(1, ...items.map((item) => item.count));
+  const total = items.reduce((sum, item) => sum + item.count, 0);
+  return (
+    <section className="ca-panel">
+      <header className="ca-panel__head">
+        <h3 className="ca-panel__title">{title}</h3>
+        <span className="ca-panel__cols">
+          {showTime ? <span>Avg. time</span> : null}
+          <span>Views</span>
+        </span>
+      </header>
+      {items.length === 0 ? (
+        <p className="ca-empty">{empty}</p>
+      ) : (
+        <ol className="ca-rank">
+          {items.map((item) => (
+            <li key={item.label} className="ca-rank__row">
+              <span className="ca-rank__bar" style={{ width: `${(item.count / max) * 100}%` }} aria-hidden />
+              <span className="ca-rank__label">
+                {badge ? <span className="ca-rank__badge">{badge(item.label)}</span> : null}
+                {label(item.label)}
+              </span>
+              {showTime ? <span className="ca-rank__time">{duration(item.seconds ?? 0)}</span> : null}
+              <span className="ca-rank__count">
+                {format.format(item.count)}
+                <small>{total > 0 ? `${Math.round((item.count / total) * 100)}%` : ""}</small>
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
+      {note ? <p className="ca-panel__note">{note}</p> : null}
+    </section>
+  );
+};

@@ -1,0 +1,21 @@
+"use client";
+// 📖 Docs: obsidian/backend/cms-payload.md → The guide
+/** "Guide" in the admin's nav, under Insights — the editor's guide. */
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+export const GuideNavLink = () => {
+  const active = usePathname()?.startsWith("/admin/guide") ?? false;
+  return (
+    <div className="ca-nav">
+      <p className="ca-nav__label">Help</p>
+      <Link
+        href="/admin/guide"
+        className={`nav__link ca-nav__link${active ? " active" : ""}`}
+        aria-current={active ? "page" : undefined}
+      >
+        Guide
+      </Link>
+    </div>
+  );
+};

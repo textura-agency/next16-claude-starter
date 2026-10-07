@@ -1,197 +1,199 @@
 ---
 name: payload-cms
-description: Install and wire Payload CMS into this Next.js 16 app, backed by Supabase Postgres and Supabase Storage — packages, payload.config.ts, the (payload) route group, collections derived from the actual page views, type generation, migrations, and proving the read loop end-to-end. Use when the user asks to "add a CMS", "make the content editable", "set up Payload", "wire up the blog", or wants marketing copy out of hardcoded props.
+description: Put a Payload CMS admin on a site built from this starter — every visible string and content photo editable, derived from the site's own content objects with the code's copy as the fallback, a per-page SEO global that drives <head>/JSON-LD/sitemap/llms.txt, Supabase Postgres + Storage, migrations only, static routes revalidated on save. Ships copy-ready kits (core, admin skin, analytics, editor's guide, legal rich text) proven on a production site. Use when the user asks to "add a CMS / admin / Payload", "make the content editable", "let the client edit the text", "SEO in the admin", or wants marketing copy out of hardcoded props. For the admin's look and the editor's guide see `payload-admin`; for visitor analytics see `payload-analytics`.
 ---
 
-# Payload CMS in this starter
+# Payload CMS — the admin flow
 
-Payload is a **Next-native** CMS: it installs into this app's `app/` directory
-rather than running as a separate service. The database is **Supabase Postgres**
-(see the `supabase-db` skill), media goes to **Supabase Storage** over its
-S3-compatible API.
+This is the flow a production site went through to get an admin its owner
+called "great": every word on the site editable, grouped the way the site
+reads, SEO per page with a live link preview, light consented analytics, the
+site's own look, and a guide with screenshots inside the admin. It is written
+down as kits (`templates/`) and decisions (below) so the next site gets there in
+one pass instead of twenty requests.
 
-Verified against Payload **3.88.0** (2026-08). Payload 4 is in canary — do not
-use it here without checking the peer ranges yourself.
+**Read first:** `obsidian/workflows/cms-admin.md` (the flow at a glance) and
+`obsidian/backend/cms-payload.md` (the architecture). Verified against
+**Payload 3.89 · Next 16.3 · Node 24** (2026-10).
 
-## 0. Pre-flight — three things that break the install
+## The decisions — and why
 
-1. **Next.js version.** `@payloadcms/next@3.88` peer-requires
-   `next >=16.2.6 <17`. The starter is on `16.3.1`, which satisfies it — but
-   **check, don't assume**, since both sides move:
-   ```bash
-   node -p "require('./package.json').dependencies.next"
-   npm view @payloadcms/next peerDependencies
-   ```
-   If Next is below the floor, bump it and `eslint-config-next` together.
-2. **ESM.** `next.config.ts` must be ESM to wrap with `withPayload`. This starter
-   already uses `next.config.ts` with ESM syntax — check before assuming.
-3. **A Supabase project must exist** with both connection strings to hand. Run
-   the `supabase-db` skill first if it does not.
+Every one of these was a request or a defect on the reference site. Don't undo
+one without the reason in front of you.
 
-Confirm the collection list with the user before writing any config. Derive the
-proposal from what the site actually renders — read `src/views/**` and the mock
-data in `src/data/mocks/` and name real content types, not a generic `posts`.
+| # | Decision | Why |
+|---|---|---|
+| D1 | **Payload inside the app** — `app/(payload)` + `app/(site)`, one build, one deploy | The owner asked for one project. Local API reads in process — no HTTP hop, works at build time. |
+| D2 | **Fields are derived from the content objects** (`text-schema.ts` walks `src/data/mocks/*`), not hand-written | Every string becomes a field defaulted to today's copy; a new line in code is a new field next deploy. Hand-written schemas drift and miss copy. |
+| D3 | **Reading is a merge**: `getText("hero")` returns the code's `HERO` with the admin's strings laid over it — **same type** | Views and components stay untouched. A deliberate exception to "use the generated type in the view" (rule `payload.md`). |
+| D4 | **Blank / missing / DB down → the code's copy**, error logged | The site never goes blank because the CMS did. A fresh database renders the full site. |
+| D5 | **Globals, not collections or blocks**, for a marketing page's sections | Each section exists once; its order is choreographed with motion/scene, so it is not the editor's to reorder. Collections only for things that are many (posts, cases). Blocks only when the editor genuinely composes pages. |
+| D6 | **Wiring is skipped** (`SKIP`: `id`, `href`, anchors, textures, scene data…); card lists have **fixed rows** matched by a hidden `key` | The editor rewrites a card but cannot break the layout, cross-wire a card to another's image, or add a 7th card to a 6-slot ring. |
+| D7 | **`OPEN_LISTS`** with a floor/ceiling for lists the layout can resize; an added row must fill every line + photo | The client asked to change counts; the floor is what keeps a carousel from showing empty glass. |
+| D8 | **Photos are optional uploads beside their copy** ("Replace photo"): blank → photo in code; upload → its URL, alt, a 512 px `small` size for textures, crop dropped | Same fallback rule as text. Only content photos — decorative art and the scene stay in code. |
+| D9 | **One SEO global, a tab per page** + Site defaults; parity with everything `<head>`, JSON-LD and `sitemap.xml` emit; a **link-preview card** per tab | "SEO for each page, the same as the site has it." Titles are absolute (`Brand \| …`, 50–60 chars) and written for search; the plugin's fields are placed by hand because routes are fixed. |
+| D10 | **Share image seeded into Media** on `onInit` (idempotent, never throws) | The editor sees the real card in the admin and can replace it, instead of a hint about a file in the code. |
+| D11 | **Routes stay static**; every global's `afterChange` → `revalidatePath("/", "layout")` | Hard rule #15 holds; saves still show at once. |
+| D12 | **Migrations only, `push: false` everywhere**; `yarn migrate:direct` over the session pooler | The same steps on every machine and the host. `push` against a live DB is how schemas get rewritten. |
+| D13 | **Storage plugin always registered** (`enabled` from env, `alwaysInsertFields`), files linked from the **public bucket URL** | The schema — and so the migrations — never depend on whether a laptop has S3 keys. `next/image` and WebGL loaders fetch from Supabase's CDN, not through `/api/media/file`. |
+| D14 | **English admin**, labels in the editor's words, sidebar groups in reading order, row labels from the row's own copy | An admin that reads like the site is one an owner uses. |
+| D15 | **Every legal section is one rich-text field** (bold, links, lists, h3; table/button as blocks) | Asked for after a block-per-paragraph model: an editor could not bold a word or link inside a sentence. Start with rich text. |
+| D16 | `/admin` and `/api/` disallowed in `robots.ts`; `/llms.txt` from the SEO global; sitemap `lastmod` = the globals' `updatedAt` | SEO audit findings: a login screen in the crawl budget, request-time `lastmod` (ignored), no llms.txt. |
 
-## 1. Install
+## The kits
 
-```bash
-yarn add payload @payloadcms/next @payloadcms/db-postgres \
-         @payloadcms/richtext-lexical @payloadcms/storage-s3 graphql sharp
-```
+`bash .claude/skills/payload-cms/scaffold.sh <kit…>` copies a kit into the
+project (never overwrites without `--force`) and prints every file — that list
+is your checklist. Then `grep -rn 'TODO\|PROJECT CONFIG' src/cms src/app` and
+fill each one.
 
-`sharp` is required for image resizing. `graphql` is a hard peer dep even if you
-never use the GraphQL API.
+| Kit | Files | Skill |
+|---|---|---|
+| `core` | `payload.config.ts`, `(payload)/*` plumbing, `(site)/layout.tsx`, `global-not-found.tsx`, `layouts/site-document.tsx`, `cms/{text-schema,content,globals,seo,seo-pages,seed}.ts`, collections users/media, `admin/share-preview.tsx`, `llms.txt/route.ts`, `scripts/migrate-direct.mjs` | this one |
+| `admin` | `(payload)/custom.css` (the skin), `admin/{graphics,welcome,row-label}.tsx` | `payload-admin` |
+| `analytics` | `cms/analytics.ts`, `collections/page-views.ts`, `api/track/route.ts`, `analytics-beacon.tsx`, `admin/analytics-*.tsx`, `admin/format.ts` | `payload-analytics` |
+| `guide` | `admin/guide-{content,body,view,nav}.tsx` (+ `yarn qa:shots`) | `payload-admin` |
+| `legal` | `cms/legal*.ts`, `views/legal/legal-rich-text.tsx` — **adapt-kit** (`--force`) | `references/legal-rich-text.md` |
 
-## 2. `src/payload.config.ts`
+`core` + `admin` is the minimum (the `(payload)` layout imports the skin).
+`payload.config.ts` marks each kit's lines — delete the ones not installed.
 
-```ts
-import path from 'path'
-import { fileURLToPath } from 'url'
-import { buildConfig } from 'payload'
-import { postgresAdapter } from '@payloadcms/db-postgres'
-import { lexicalEditor } from '@payloadcms/richtext-lexical'
-import { s3Storage } from '@payloadcms/storage-s3'
-import sharp from 'sharp'
+## Phase 0 — Pre-flight (stop if any fails)
 
-import { Media } from './collections/media'
-import { Pages } from './collections/pages'
+1. **Node ≥ 22 (24 recommended), pinned in `.nvmrc`.** On Node 20.17 Payload's
+   CLI (`generate:importmap`, `generate:types`, `migrate:*`) **exits 0 and does
+   nothing** — no error, no file. `node -v` before every CLI call.
+2. **Next vs Payload peers:** `npm view @payloadcms/next@<ver> peerDependencies`
+   against `package.json`'s `next`. Pin all `@payloadcms/*` and `payload` to the
+   **same exact version** (no caret).
+3. **A Supabase project** with its connection strings — run `supabase-db` first if
+   not. Details: `references/supabase-wiring.md`.
+4. **All copy lives in typed objects in `src/data/mocks/`.** Derivation (D2) only
+   sees what is there. Sweep `src/views` and `src/components` for literal copy
+   (headings, buttons, form errors, cookie banner, menu, emails in `lib/`, 404,
+   legal labels) and move it into mocks **before** installing — this is the step
+   the reference site had to redo twice. aria-labels may stay in code.
+5. **Propose the admin to the user before writing config**: the sidebar
+   (`Home page` → numbered sections in scroll order, `Site` → header/footer/forms/
+   emails/cookie banner/SEO, `Pages & documents` → 404 + legal, `Settings`),
+   what stays in code, which lists are open and why, which kits. Get a yes.
 
-const dirname = path.dirname(fileURLToPath(import.meta.url))
-
-export default buildConfig({
-  admin: {
-    user: 'users',
-    importMap: { baseDir: path.resolve(dirname) },
-  },
-  collections: [Pages, Media],
-  editor: lexicalEditor(),
-  secret: process.env.PAYLOAD_SECRET || '',
-  typescript: { outputFile: path.resolve(dirname, 'payload-types.ts') },
-  db: postgresAdapter({
-    pool: { connectionString: process.env.DATABASE_URL || '' },
-    // Schema is pushed automatically in dev. In production this must be false —
-    // ship migrations instead, or a deploy can rewrite the live schema.
-    push: process.env.NODE_ENV !== 'production',
-  }),
-  plugins: [
-    s3Storage({
-      collections: { media: true },
-      bucket: process.env.S3_BUCKET || '',
-      config: {
-        endpoint: process.env.S3_ENDPOINT,      // https://<ref>.storage.supabase.co/storage/v1/s3
-        region: process.env.S3_REGION,          // e.g. eu-central-1
-        forcePathStyle: true,                   // REQUIRED for Supabase
-        credentials: {
-          accessKeyId: process.env.S3_ACCESS_KEY_ID || '',
-          secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || '',
-        },
-      },
-    }),
-  ],
-  sharp,
-})
-```
-
-`forcePathStyle: true` is not optional — without it the S3 client builds
-virtual-host URLs Supabase does not serve, and every upload 404s.
-
-## 3. Route group + next.config
-
-Scaffold `src/app/(payload)/` — `layout.tsx`, `admin/[[...segments]]/page.tsx`,
-`api/[...slug]/route.ts`, `api/graphql/route.ts`. Copy these from the current
-Payload blank template rather than writing them by hand; they are generated
-plumbing that changes between versions:
-`github.com/payloadcms/payload/tree/main/templates/blank/src/app/(payload)`
-
-Wrap the Next config:
-
-```ts
-import { withPayload } from '@payloadcms/next/withPayload'
-export default withPayload(nextConfig)
-```
-
-Add the scripts:
-
-```json
-"payload": "payload",
-"generate:types": "payload generate:types",
-"generate:importmap": "payload generate:importmap"
-```
-
-## 4. Env
-
-Add to `src/env.ts` (zod) **and** `.env.example` in the same change:
-
-| Var | Scope | Notes |
-|-----|-------|-------|
-| `PAYLOAD_SECRET` | server | long random string; rotating it invalidates sessions |
-| `DATABASE_URL` | server | Supavisor **transaction** pooler, port 6543 |
-| `DATABASE_URL_DIRECT` | server | **direct** connection, port 5432 — migrations only |
-| `S3_BUCKET` / `S3_ENDPOINT` / `S3_REGION` | server | Supabase Storage |
-| `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | server | never `NEXT_PUBLIC_` |
-
-## 5. Collections that match this starter
-
-Model collections on the sections the site actually renders. A section whose copy
-is currently a mock file is a candidate; a section that is pure layout is not.
-
-- Use **blocks** for page composition when a page is a stack of sections — one
-  block per section component, so an editor reorders sections without a deploy.
-- Keep field names identical to the component prop names. The whole point is that
-  `<Hero {...page.hero} />` type-checks against the generated type.
-- `Media` collection: `upload: true`, and **require `alt`** — hard rule #10 says
-  every image has meaningful alt text, so make the CMS enforce it.
-- Rich text: Lexical. Render with `@payloadcms/richtext-lexical/react`, never
-  `dangerouslySetInnerHTML`.
-
-## 6. Reading content — Local API only
-
-```ts
-// src/views/home.tsx — a Server Component
-import { getPayload } from 'payload'
-import config from '@/payload.config'
-
-export const HomeView = async () => {
-  const payload = await getPayload({ config })
-  const { docs } = await payload.find({ collection: 'pages', where: { slug: { equals: 'home' } }, limit: 1 })
-  const page = docs[0]
-  return <main>{/* pass page fields down as props */}</main>
-}
-```
-
-The Local API talks to the database in-process — no HTTP hop, works during static
-generation. Never fetch your own REST endpoint from your own server code.
-
-Keep the route thin: `app/page.tsx` still only imports `HomeView` (hard rule #5).
-Payload data enters at the **view**, and presentational components below it stay
-CMS-agnostic and receive props (hard rule #4).
-
-## 7. Types and migrations
+## Phase 1 — Install and split
 
 ```bash
-yarn payload generate:types        # after ANY collection/field change
-yarn payload generate:migrations   # after a schema change
-yarn payload migrate               # apply — against DATABASE_URL_DIRECT (5432)
+yarn add payload@<v> @payloadcms/next@<v> @payloadcms/db-postgres@<v> \
+  @payloadcms/richtext-lexical@<v> @payloadcms/storage-s3@<v> \
+  @payloadcms/plugin-seo@<v> @payloadcms/translations@<v> graphql sharp
+bash .claude/skills/payload-cms/scaffold.sh core admin
 ```
 
-`src/payload-types.ts` is generated output: never hand-edit it, always commit it.
-In production `push: false` + committed migrations; `push: true` against a live
-database is how people lose data.
+- `package.json`: `"type": "module"`; scripts `payload`, `generate:types`,
+  `generate:importmap`, `migrate`, `migrate:create`,
+  `"migrate:direct": "node scripts/migrate-direct.mjs"`.
+- `tsconfig.json` paths: `"@payload-config": ["./src/payload.config.ts"]`.
+- `next.config.ts`: `export default withPayload(nextConfig)`,
+  `experimental.globalNotFound: true`, and `images.remotePatterns` for
+  `*.supabase.co` + `*.storage.supabase.co` at `/storage/v1/object/public/**`.
+- `src/env.ts` + `.env.example` — `references/supabase-wiring.md` §Env (all
+  optional strings, empty = unset, so a laptop without a DB still builds).
+- **Split the app into two root layouts:** `git mv` `src/app/{page.tsx,
+  error.tsx,not-found.tsx,privacy-policy,robot-view,…}` → `src/app/(site)/`;
+  move the body of the old `app/layout.tsx` into `src/layouts/site-document.tsx`
+  (the kit's copy is the starter's layout as shipped — merge, don't overwrite)
+  and delete `app/layout.tsx`. `api/`, `robots.ts`, `sitemap.ts`, `manifest.ts`,
+  `globals.css` stay at `app/`. Point `global-not-found.tsx` at the real 404 view.
+- `verify.sh` already skips `src/payload-types.ts` and `src/app/(payload)/`.
 
-## 8. Prove it before reporting done
+## Phase 2 — The content model
 
-1. `yarn dev` → `/admin` loads, create the first user.
-2. Create one document with an image upload → the image resolves from Supabase
-   Storage in the browser (not a 404, not a signed-URL error).
-3. That document's content renders on the public route.
-4. `yarn build` passes.
-5. `.claude/scripts/verify.sh` passes — Payload data must reach components as
-   props, not as hardcoded content.
+In `text-schema.ts` and `globals.ts` (`references/content-model.md` has the
+rules and the edge cases):
 
-## 9. Update the vault (same turn)
+1. **`TEXT_GLOBALS`** — one entry per content object, slug / numbered label /
+   group / `base` / a one-line `note` (what the screen is + any rule before
+   Save). Group order = sidebar order.
+2. **`SKIP`** — every wiring key the mocks use. Read each mock; anything a reader
+   never sees as words.
+3. **`OPEN_LISTS`** / **`FIXED_LISTS`** — with the reason in a comment, from the
+   component's real constraints (a ring's angle, a marquee's fill, a headline's
+   line count).
+4. **`LABELS`** — every key whose humanised name an editor wouldn't understand.
+5. **Views read through `content.ts`**: `const hero = await getText("hero")` in
+   the view (Server Component), passed down exactly as the mock was. Nothing
+   below the view changes. Shared chrome (header, footer, cookie banner) is read
+   once in `SiteDocument` / the layout and passed as props.
+6. Emails and other server copy: `getText("emails")` in the route; placeholders
+   are **named** (`{name}`, `{company}`) and the editor's text is escaped.
 
-- `obsidian/architecture/tech-stack.md` — new dependencies
-- `obsidian/backend/cms-payload.md` — collections created and why
-- `obsidian/meta/changelog.md` — entry
-- `obsidian/meta/decisions-log.md` — ADR if the content model shapes architecture
-- `obsidian/architecture/environment-variables.md` — the new vars
+## Phase 3 — SEO (part of core — never skip)
+
+1. `seo-pages.ts`: one entry per route + the 404 — titles **50–60 chars,
+   absolute, opening on the brand**; descriptions 100–150; written for search.
+2. Every route's metadata comes **through its view** (hard rule #5 — `page.tsx`
+   imports only `@/views`): the view exports
+   `export const getHomeMetadata = () => getPageMetadata("home")` and the page
+   does `export const generateMetadata = getHomeMetadata`. `(site)/layout.tsx`
+   uses `getSiteMetadata()`; `SiteDocument` renders `getStructuredData()`.
+3. `sitemap.ts` → `getSitemapPages()` (noindex pages dropped, `lastmod` from the
+   content). `robots.ts` → disallow `/admin` and `/api/` (keep `/robot-view`).
+4. `/llms.txt` from the kit. Details: `references/seo-global.md`.
+
+## Phase 4 — Schema, migration, first user
+
+```bash
+node -v                                   # ≥ 22 — see Phase 0
+yarn generate:importmap                   # silent no-op? → node node_modules/payload/bin.js generate:importmap --force
+yarn generate:types
+yarn migrate:direct create init           # bare migrate:create does not load .env.local
+yarn migrate:direct                       # apply over the session pooler
+yarn dev                                  # /admin → create the first user
+```
+
+Commit `src/payload-types.ts`, `src/migrations/*`, `importMap.js`. A rename the
+drizzle prompt would ask about cannot be answered non-interactively — split it
+into drop + add migrations, or hand-write it and patch the `.json` snapshot
+(`references/supabase-wiring.md` §Migrations).
+
+## Phase 5 — The admin's look → `payload-admin` skill (§Skin)
+## Phase 6 — Analytics (only if wanted) → `payload-analytics` skill
+## Phase 7 — The editor's guide → `payload-admin` skill (§Guide) — **last**, it documents the final admin
+
+## Phase 8 — Prove it (each one, not "it built")
+
+1. **Edit → site:** change a field in each group, Save, refresh the site — shown.
+   Put it back.
+2. **Blank → fallback:** clear a field — the code's copy shows, nothing breaks.
+3. **No database:** unset `DATABASE_URL`, `yarn build && yarn start` — the full
+   site renders from code, errors logged once per global.
+4. **Photo:** upload into a "Replace photo" field — the file lands in the bucket,
+   the site shows it via the public URL; delete it → the code's photo returns.
+5. **Open list:** cut to the floor and add a row — the section still looks right
+   at rest and in motion; a half-filled new row is refused with its missing lines.
+6. **SEO:** view-source on each route — title, description, canonical, og:image
+   (1200 × 630), JSON-LD; `sitemap.xml`, `robots.txt`, `/llms.txt`.
+7. **Static:** the build output lists the site's routes as static (○), not ƒ.
+8. `yarn verify` · `yarn lint` · `yarn build` · Lighthouse unchanged (`yarn qa:lh`)
+   — the CMS must not cost the site a point.
+
+## Phase 9 — Vault (same turn)
+
+`cms-payload.md` (what this project's admin holds: groups, open lists, kits,
+where data lives), `tech-stack.md` + `changelog.md` (deps), `environment-
+variables.md`, an ADR for any departure from D1–D16.
+
+## Traps (each cost time on the reference site)
+
+- Payload CLI on Node 20.17 → silent no-op (Phase 0).
+- `.env.local` overrides `.env` — a `DATABASE_URL` left in both takes `.env.local`'s.
+- Password with `%`/`$` in the URL: `%` throws "URI malformed"; `$` is expanded
+  by `@next/env` and silently shortens it. Percent-encode, or letters+digits.
+- Supabase's Direct host is IPv6-only → `ENOTFOUND` on IPv4; use the session
+  pooler (5432) for `DATABASE_URL_DIRECT`.
+- `revalidatePath` throws outside a request (seed, script) — the kit catches it.
+- A `"use client"` module's exports are client references — a server component
+  can't call a helper exported from one (why `admin/format.ts` exists).
+- Payload's rich-text types use `any` — `verify.sh` skips `payload-types.ts`.
+- Payload's admin class names aren't a public API: after an upgrade, open
+  `/admin` and re-check the skin.
+- Saving locally writes the live DB when dev and prod share one Supabase project
+  — say so to the user; test edits go in and come back out.

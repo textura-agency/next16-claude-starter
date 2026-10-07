@@ -1,0 +1,107 @@
+// 📖 Docs: obsidian/frontend/components/common.md
+"use client";
+/**
+ * Counts a page view for the admin's analytics, and how long it was read
+ * — **only once the visitor has allowed analytics** in
+ * the cookie banner.
+ *
+ * Renders nothing. No cookie, no storage. On a new page it posts the path and
+ * the referrer and keeps the view's id; when the visitor leaves — another page,
+ * a closed or hidden tab — it posts the seconds the page was *visible*, so a
+ * tab left in the background does not inflate the time. A visitor who has not
+ * decided yet, or said no, is not counted.
+ */
+import { useCallback, useEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
+
+import { useCookieStore } from "@/components/common/Cookie/cookieStore";
+
+const ENDPOINT = "/api/track";
+
+interface Current {
+  id: string | number | null;
+  /** Visible milliseconds banked before the latest return to the tab. */
+  banked: number;
+  /** When the page last became visible, or null while hidden. */
+  since: number | null;
+  reported: boolean;
+}
+
+const send = (body: object) => {
+  const json = JSON.stringify(body);
+  if (!navigator.sendBeacon?.(ENDPOINT, new Blob([json], { type: "application/json" }))) {
+    void fetch(ENDPOINT, {
+      method: "POST",
+      body: json,
+      keepalive: true,
+      headers: { "content-type": "application/json" },
+    });
+  }
+};
+
+export const AnalyticsBeacon = () => {
+  const pathname = usePathname();
+  const allowed = useCookieStore((state) => state.hydrated && state.consent?.analytics === true);
+  const current = useRef<Current | null>(null);
+  const sentFor = useRef<string | null>(null);
+
+  // Report the open view's visible time, once.
+  const report = useCallback(() => {
+    const view = current.current;
+    if (!view || view.reported || view.id === null) return;
+    const visible = view.banked + (view.since === null ? 0 : performance.now() - view.since);
+    view.reported = true;
+    send({ id: view.id, seconds: visible / 1000 });
+  }, []);
+
+  useEffect(() => {
+    if (!allowed || !pathname || sentFor.current === pathname) return;
+    report();
+    sentFor.current = pathname;
+    const view: Current = {
+      id: null,
+      banked: 0,
+      since: document.visibilityState === "visible" ? performance.now() : null,
+      reported: false,
+    };
+    current.current = view;
+    // The server keeps only another site's host — moving between our own
+    // pages is not a referral.
+    void fetch(ENDPOINT, {
+      method: "POST",
+      keepalive: true,
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ path: pathname, referrer: document.referrer }),
+    })
+      .then((res) => (res.ok ? (res.json() as Promise<{ data?: { id?: string | number | null } }>) : null))
+      .then((json) => {
+        view.id = json?.data?.id ?? null;
+      })
+      .catch(() => undefined);
+  }, [allowed, pathname, report]);
+
+  useEffect(() => {
+    if (!allowed) return;
+    const onVisibility = () => {
+      const view = current.current;
+      if (!view) return;
+      if (document.visibilityState === "hidden") {
+        if (view.since !== null) view.banked += performance.now() - view.since;
+        view.since = null;
+        // A hidden tab may never come back — report now; a later return
+        // simply goes unreported rather than counted twice.
+        report();
+      } else if (!view.reported) {
+        view.since = performance.now();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", report);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", report);
+    };
+  }, [allowed, report]);
+
+  return null;
+};

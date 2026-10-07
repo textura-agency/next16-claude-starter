@@ -1,0 +1,180 @@
+// 📖 Docs: obsidian/backend/cms-payload.md
+/**
+ * Search and share metadata for every page — one admin global, a tab per page.
+ *
+ * Built from Payload's own SEO plugin fields (`@payloadcms/plugin-seo/fields`):
+ * a title and a description with live length guidance, a share image, and a
+ * Google-style preview of the snippet. The plugin is registered for its admin
+ * strings only (`payload.config.ts`) — it attaches one `meta` group per
+ * collection, and this site has fixed routes, not a collection of pages — so
+ * the fields are placed by hand, a tab per page.
+ *
+ * The copy and the defaults are plain data in `seo-pages.ts`, so the admin's
+ * link-preview component can read them without pulling Payload into the
+ * browser; this module adds the fields around them.
+ *
+ * Each page's copy was written for search, not lifted from the boards, and to
+ * the plugin's own bounds: a title of 50–60 characters that opens on
+ * the brand (`Brand | …`) and then says what the page is, a
+ * description of 100–150 that says what the reader gets. Blank in the admin
+ * → this default.
+ *
+ * Everything the site puts in a page's `<head>` has a field here:
+ * a page tab holds the title, description, share image, canonical address and
+ * the noindex switch, and ends on a card of how a link to the page will look —
+ * image, title, description and address, fallbacks applied. The site defaults
+ * hold what every page shares: site name, description, share image, author,
+ * locale, the X handle, and the organisation's logo and social profiles that
+ * go into the JSON-LD (`structured-data.ts`). The sitemap reads the same
+ * global, so a page hidden from search leaves it too.
+ */
+import type { Field, GlobalConfig, Tab } from "payload";
+import {
+  MetaDescriptionField,
+  MetaImageField,
+  MetaTitleField,
+  OverviewField,
+  PreviewField,
+} from "@payloadcms/plugin-seo/fields";
+
+import { SEO_PAGES, SEO_SITE } from "./seo-pages";
+
+export { SEO_PAGES, SEO_SITE, type SeoPageName } from "./seo-pages";
+
+/** Where the admin's preview components live (`payload.config.ts` import map). */
+const SHARE_PREVIEW = "/cms/admin/share-preview#SharePreview";
+
+const pageTab = (page: (typeof SEO_PAGES)[number]): Tab => {
+  const at = (field: string) => `${page.name}.${field}`;
+  const fields: Field[] = [
+    OverviewField({
+      titlePath: at("title"),
+      descriptionPath: at("description"),
+      imagePath: at("image"),
+    }),
+    MetaTitleField({ overrides: { defaultValue: page.title, label: "Title" } }),
+    MetaDescriptionField({
+      overrides: { defaultValue: page.description, label: "Description" },
+    }),
+    MetaImageField({
+      relationTo: "media",
+      overrides: {
+        label: "Share image",
+        admin: {
+          description: "1200 × 630 for social cards. Blank: the site's default share image.",
+        },
+      },
+    }),
+    ...(page.indexable
+      ? [
+          {
+            name: "canonical",
+            type: "text",
+            label: "Canonical address",
+            defaultValue: page.path,
+            admin: {
+              description:
+                "The one address search engines should credit for this page — a path like /terms, or a full URL if it lives elsewhere. Also the address in link previews. Blank: this page's own.",
+            },
+          } satisfies Field,
+          {
+            name: "noIndex",
+            type: "checkbox",
+            label: "Hide from search engines (noindex)",
+            defaultValue: false,
+            admin: { description: "Also leaves the page out of sitemap.xml." },
+          } satisfies Field,
+        ]
+      : []),
+    PreviewField({ titlePath: at("title"), descriptionPath: at("description") }),
+    {
+      name: "sharePreview",
+      type: "ui",
+      admin: {
+        components: { Field: { path: SHARE_PREVIEW, clientProps: { page: page.name, path: page.path } } },
+      },
+    },
+  ];
+  return {
+    name: page.name,
+    label: page.label,
+    description: page.indexable
+      ? `What search engines and link previews show for ${page.path}.`
+      : "Shown in the browser tab when an address does not exist. Never indexed.",
+    fields,
+  };
+};
+
+export const seoGlobal = (revalidate: NonNullable<GlobalConfig["hooks"]>["afterChange"]): GlobalConfig => ({
+  slug: "seo",
+  label: "SEO",
+  admin: {
+    group: "Site",
+    description:
+      "Everything search engines and link previews read — one tab per page, the site's defaults in the first. The sitemap and the structured data follow it too.",
+  },
+  hooks: { afterChange: revalidate },
+  fields: [
+    {
+      type: "tabs",
+      tabs: [
+        {
+          name: "site",
+          label: "Site defaults",
+          description: "Used wherever a page leaves a field blank.",
+          fields: [
+            { name: "siteName", type: "text", label: "Site name", defaultValue: SEO_SITE.siteName,
+              admin: { description: "og:site_name and the publisher in structured data." } },
+            { name: "description", type: "textarea", label: "Default description",
+              defaultValue: SEO_SITE.description },
+            MetaImageField({
+              relationTo: "media",
+              overrides: {
+                name: "image",
+                label: "Default share image",
+                admin: {
+                  description:
+                    "1200 × 630 — the card under every link to the site, on every page that has no image of its own. Blank: the site's own card (/open-graph.png).",
+                },
+              },
+            }),
+            { name: "author", type: "text", label: "Author / publisher", defaultValue: SEO_SITE.author,
+              admin: { description: "The legal name behind the site — author, creator and publisher tags, and the organisation in structured data." } },
+            { name: "locale", type: "text", label: "Locale", defaultValue: SEO_SITE.locale,
+              admin: { description: "og:locale — language_REGION, e.g. en_US." } },
+            { name: "twitterHandle", type: "text", label: "X / Twitter handle",
+              admin: { description: "With the @, e.g. @brand. Blank: left out." } },
+            {
+              name: "logo",
+              type: "upload",
+              relationTo: "media",
+              label: "Organisation logo",
+              admin: {
+                description:
+                  "The logo search engines show beside the company — square, at least 112 × 112. Blank: the site's app icon.",
+              },
+            },
+            {
+              name: "sameAs",
+              type: "array",
+              label: "Social profiles",
+              labels: { singular: "Profile", plural: "Profiles" },
+              admin: {
+                description:
+                  "The company's pages elsewhere — LinkedIn, Instagram, YouTube… Listed as the organisation's sameAs in structured data.",
+                components: { RowLabel: "/cms/admin/row-label#RowLabel" },
+              },
+              fields: [{ name: "url", type: "text", label: "URL", required: true }],
+            },
+            {
+              name: "sharePreview",
+              type: "ui",
+              admin: { components: { Field: { path: SHARE_PREVIEW, clientProps: { page: "site", path: "/" } } } },
+            },
+          ],
+        },
+        ...SEO_PAGES.map(pageTab),
+      ],
+    },
+  ],
+});

@@ -1,0 +1,26 @@
+import type { Metadata, Viewport } from "next";
+
+import { getPageMetadata } from "@/cms/content";
+import { SiteDocument } from "@/layouts/site-document";
+import { generateViewport } from "@/utils/seo/generate-page-metadata";
+
+/**
+ * 404 for a URL no route matches. The app has two root layouts — the site's
+ * `(site)` and the admin's `(payload)` — so an unmatched URL has no layout to
+ * render inside, and Next serves this file whole instead (`globalNotFound` in
+ * `next.config.ts`). It stands the same 404 in the site's own document.
+ * `notFound()` inside the site still renders `(site)/not-found.tsx`.
+ */
+export const generateMetadata = (): Promise<Metadata> => getPageMetadata("notFound");
+export const viewport: Viewport = generateViewport();
+
+export default function GlobalNotFound() {
+  return (
+    <SiteDocument>
+      {/* TODO: the same view `(site)/not-found.tsx` renders. */}
+      <main className="flex min-h-lvh flex-col items-center justify-center gap-4 text-center">
+        <h1>404</h1>
+      </main>
+    </SiteDocument>
+  );
+}

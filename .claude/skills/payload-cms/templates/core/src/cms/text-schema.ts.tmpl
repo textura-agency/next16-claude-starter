@@ -1,0 +1,422 @@
+// 📖 Docs: obsidian/backend/cms-payload.md
+/**
+ * The site's copy as Payload fields — derived from the content objects
+ * themselves, not written out by hand.
+ *
+ * Every section's copy already lives in one typed object (`src/data/mocks/`),
+ * and those objects carry more than words: image paths, anchors, ids, scene
+ * waypoints, angles, crop boxes. The admin edits **copy and photos**, so this module
+ * walks an object and makes a field for every string a reader sees and an
+ * upload beside every photo, skipping the rest. The layout stays in code and
+ * cannot be broken from the admin.
+ *
+ * The same walk runs backwards in `mergeText`: whatever the editor saved is laid
+ * over the object, string by string, and anything missing, blank or unknown
+ * falls back to the code's copy. So a fresh database, an unreachable one, or a
+ * section that gains a new line before the admin does all still render the site.
+ *
+ * Shapes:
+ * - a string → `text`, or `textarea` when it reads as a paragraph;
+ * - an image's `src` → an optional upload into Media. Blank, the photo in code
+ *   is shown; filled, the upload replaces it;
+ * - a list of strings → an array of `{ text }` rows the editor can add to or
+ *   trim, unless the layout counts the lines (`FIXED_LISTS`);
+ * - an object → a collapsible `group`;
+ * - a list of objects → an array with **fixed rows**: each row is tied to an
+ *   item in code (its image, its building, its anchor) by a hidden `key`, so the
+ *   editor rewrites a card but does not add or drop one;
+ * - a list in `OPEN_LISTS` → the same rows, but the editor may drop, reorder
+ *   and add back down to its floor and up to the code's count. A row the editor
+ *   adds has no item in code, so every line and the photo are required on it.
+ */
+import type { ArrayField, Field } from "payload";
+
+/**
+ * Keys that are wiring, not copy: links, assets, ids, scene and layout data.
+ * PROJECT CONFIG — add every key the content objects use for wiring (read the
+ * mocks: anything a reader never sees as words). A key missed here becomes a
+ * text field an editor can break the layout with.
+ */
+const SKIP = new Set([
+  "id",
+  "href",
+  "texture",
+  "tone",
+  "icon",
+  "index",
+  "variant",
+  "anchor",
+]);
+
+/**
+ * An image's path in code. In the admin it is an upload, not a text box: the
+ * editor replaces the photo, never types a path.
+ */
+const PHOTO = "src";
+
+/**
+ * Card lists the editor may resize: the fewest items the layout can carry and
+ * the most (the code's own count when `max` is not given). PROJECT CONFIG —
+ * every entry needs a reason a reviewer can check, e.g.:
+ * - a 3D carousel at 60° a card: six close the ring, below four the side
+ *   cards turn empty as it rotates → `{ min: 4 }`;
+ * - a marquee that repeats a short list to fill the screen → `{ min: 4, max: 30 }`.
+ * Lists not named here keep the code's rows: rewritable, never added/dropped.
+ */
+const OPEN_LISTS: Readonly<Record<string, { min: number; max?: number }>> = {
+  // logos: { min: 4, max: 30 },
+};
+
+/** String lists whose length the layout depends on — rows fixed, text editable (a headline split into lines). PROJECT CONFIG. */
+const FIXED_LISTS = new Set(["title"]);
+
+/** Longer than this, a string gets a multi-line box. */
+const PARAGRAPH = 70;
+
+/**
+ * Admin labels for the keys the content uses; anything else is humanised
+ * (`primaryCta` → "Primary cta"). PROJECT CONFIG — label every key whose
+ * humanised form an editor would not understand, in the words of the screen
+ * ("Accent (blue part)", not "accent"). The common ones are filled in.
+ */
+const LABELS: Readonly<Record<string, string>> = {
+  eyebrow: "Eyebrow (small line above the headline)",
+  title: "Title",
+  heading: "Heading",
+  lead: "Headline — first part",
+  accent: "Accent (highlighted part)",
+  description: "Description",
+  body: "Text",
+  label: "Text",
+  cta: "Button",
+  primaryCta: "Primary button",
+  secondaryCta: "Secondary button",
+  items: "Items",
+  points: "Items",
+  cards: "Cards",
+  steps: "Steps",
+  tags: "Tags",
+  name: "Name",
+  note: "Closing line",
+  image: "Image",
+  media: "Photo",
+  alt: "Photo description (alt)",
+  src: "Replace photo",
+  logos: "Logo strip",
+  links: "Links",
+  columns: "Link columns",
+  copyright: "Copyright",
+  placeholder: "Placeholder",
+  error: "Error",
+  submit: "Submit button",
+  submitting: "Button while sending",
+  success: "Success",
+  failure: "Send failed",
+  before: "Text before the link",
+  link: "Link text",
+  after: "Text after the link",
+};
+
+const humanise = (key: string): string =>
+  key.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (c) => c.toUpperCase());
+
+export const labelFor = (key: string): string => LABELS[key] ?? humanise(key);
+
+type Plain = Record<string, unknown>;
+
+const isRecord = (value: unknown): value is Plain =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const isStringList = (value: unknown): value is readonly string[] =>
+  Array.isArray(value) && value.every((item) => typeof item === "string");
+
+const isRecordList = (value: unknown): value is readonly Plain[] =>
+  Array.isArray(value) && value.length > 0 && value.every(isRecord);
+
+/** Every key any item of a list has, with the first value seen for it. */
+const unionOf = (items: readonly Plain[]): Plain => {
+  const union: Plain = {};
+  for (const item of items) {
+    for (const [key, value] of Object.entries(item)) {
+      if (!(key in union)) union[key] = value;
+    }
+  }
+  return union;
+};
+
+/** Whether a key carries any copy at all — a group of numbers is not a field. */
+const hasText = (value: unknown): boolean => {
+  if (typeof value === "string") return true;
+  if (Array.isArray(value)) return value.some(hasText);
+  if (isRecord(value)) {
+    return Object.entries(value).some(
+      ([key, inner]) => key === PHOTO || (!SKIP.has(key) && hasText(inner)),
+    );
+  }
+  return false;
+};
+
+/** An object as the admin stores it: string lists become `{ text }` rows. */
+export const toData = (value: unknown): unknown => {
+  if (typeof value === "string") return value;
+  if (isStringList(value)) return value.map((text) => ({ text }));
+  if (isRecordList(value)) {
+    return value.map((item) => ({
+      ...(typeof item.id === "string" ? { key: item.id } : {}),
+      ...(toData(item) as Plain),
+    }));
+  }
+  if (isRecord(value)) {
+    const out: Plain = {};
+    for (const [inner, innerValue] of Object.entries(value)) {
+      // A photo's default is the one in code, so the upload starts empty.
+      if (inner === PHOTO || SKIP.has(inner) || !hasText(innerValue)) continue;
+      out[inner] = toData(innerValue);
+    }
+    return out;
+  }
+  return undefined;
+};
+
+interface WalkOptions {
+  /** Inside an array row: no per-field defaults, the row's own default fills it. */
+  inRow: boolean;
+  /** For a list of objects: which keys each row's item actually has, by `key`. */
+  presence?: ReadonlyMap<string, ReadonlySet<string>>;
+}
+
+const textField = (name: string, sample: string, inRow: boolean): Field => {
+  const base = { name, label: labelFor(name), ...(inRow ? {} : { defaultValue: sample }) };
+  return sample.length > PARAGRAPH ? { ...base, type: "textarea" } : { ...base, type: "text" };
+};
+
+/** The one field of a string-list row. */
+const rowText = (long: boolean): Field =>
+  long
+    ? { name: "text", type: "textarea", label: "Text", required: true }
+    : { name: "text", type: "text", label: "Text", required: true };
+
+const filled = (value: unknown): string | undefined =>
+  typeof value === "string" && value.trim() !== "" ? value.trim() : undefined;
+
+/**
+ * What a row added in the admin leaves blank of the copy an item in code has:
+ * every line and every photo, by label. Nested lists are not asked for.
+ */
+const missing = (template: Plain, row: unknown, trail = ""): string[] => {
+  const data = isRecord(row) ? row : {};
+  return Object.entries(template).flatMap(([key, value]) => {
+    const label = trail ? `${trail} → ${labelFor(key)}` : labelFor(key);
+    if (key === PHOTO && typeof value === "string") return data[key] == null ? [label] : [];
+    if (SKIP.has(key)) return [];
+    if (typeof value === "string") return value !== "" && !filled(data[key]) ? [label] : [];
+    if (isRecord(value)) return missing(value, data[key], label);
+    return [];
+  });
+};
+
+/** The upload that replaces a photo in code. */
+const photoField: Field = {
+  name: PHOTO,
+  type: "upload",
+  relationTo: "media",
+  label: labelFor(PHOTO),
+  admin: { description: "Blank: the photo in code is shown." },
+};
+
+const fieldFor = (name: string, value: unknown, options: WalkOptions): Field | null => {
+  if (name === PHOTO && typeof value === "string") return photoField;
+  if (SKIP.has(name) || !hasText(value)) return null;
+
+  if (typeof value === "string") return textField(name, value, options.inRow);
+
+  if (isStringList(value)) {
+    const long = value.some((text) => text.length > PARAGRAPH);
+    const fixed = FIXED_LISTS.has(name);
+    return {
+      name,
+      type: "array",
+      label: labelFor(name),
+      labels: { singular: "Line", plural: "Lines" },
+      ...(fixed ? { minRows: value.length, maxRows: value.length } : {}),
+      admin: { components: { RowLabel: "/cms/admin/row-label#RowLabel" } },
+      fields: [rowText(long)],
+      ...(options.inRow ? {} : { defaultValue: value.map((text) => ({ text })) }),
+    };
+  }
+
+  if (isRecordList(value)) {
+    const presence = new Map<string, Set<string>>();
+    for (const item of value) {
+      if (typeof item.id === "string") presence.set(item.id, new Set(Object.keys(item)));
+    }
+    const keyed = presence.size === value.length;
+    const fields = fieldsOf(unionOf(value), { inRow: true, presence: keyed ? presence : undefined });
+    if (fields.length === 0) return null;
+    const open = OPEN_LISTS[name];
+    const floor = open?.min;
+    const ceiling = open?.max ?? value.length;
+    const template = unionOf(value);
+    return {
+      name,
+      type: "array",
+      label: labelFor(name),
+      labels: { singular: "Item", plural: "Items" },
+      minRows: floor ?? value.length,
+      maxRows: ceiling,
+      ...(floor
+        ? {
+            validate: (rows: unknown) => {
+              const added = (Array.isArray(rows) ? rows : []).findIndex(
+                (row) => isRecord(row) && !filled(row.key) && missing(template, row).length > 0,
+              );
+              if (added < 0) return true;
+              const row = (rows as unknown[])[added];
+              return `Row ${added + 1} is new: fill ${missing(template, row).join(", ")}.`;
+            },
+          }
+        : {}),
+      admin: {
+        initCollapsed: true,
+        ...(floor
+          ? {
+              description: `${floor} to ${ceiling}. Drag to reorder; one you add needs every line and a photo.`,
+            }
+          : {}),
+        components: { RowLabel: "/cms/admin/row-label#RowLabel" },
+      },
+      fields: [
+        // Ties the row to its item in code — see the module note.
+        ...(keyed
+          ? [{ name: "key", type: "text", admin: { hidden: true }, label: "Key" } satisfies Field]
+          : []),
+        ...fields,
+      ],
+      ...(options.inRow ? {} : { defaultValue: toData(value) as ArrayField["defaultValue"] }),
+    };
+  }
+
+  if (isRecord(value)) {
+    const fields = fieldsOf(value, { inRow: options.inRow });
+    if (fields.length === 0) return null;
+    return { name, type: "group", label: labelFor(name), fields };
+  }
+
+  return null;
+};
+
+/** The fields for one object's copy. */
+export const fieldsOf = (sample: Plain, options: WalkOptions = { inRow: false }): Field[] =>
+  Object.entries(sample).flatMap(([name, value]) => {
+    const field = fieldFor(name, value, { inRow: options.inRow });
+    if (!field) return [];
+    const { presence } = options;
+    // A field only some rows' items have (a card's chips, another's figure) is
+    // shown on those rows only.
+    if (presence && [...presence.values()].some((keys) => !keys.has(name))) {
+      return [
+        {
+          ...field,
+          admin: {
+            ...("admin" in field ? field.admin : {}),
+            condition: (_data: unknown, sibling: Plain) =>
+              typeof sibling?.key === "string" && (presence.get(sibling.key)?.has(name) ?? false),
+          },
+        } as Field,
+      ];
+    }
+    return [field];
+  });
+
+/** An uploaded photo, read at depth 1, or nothing usable. */
+const uploaded = (value: unknown) => {
+  if (!isRecord(value)) return undefined;
+  const url = filled(value.url);
+  if (!url) return undefined;
+  const sizes = isRecord(value.sizes) ? value.sizes : {};
+  const small = isRecord(sizes.small) ? filled(sizes.small.url) : undefined;
+  return { url, alt: filled(value.alt), small };
+};
+
+/**
+ * An image object with its upload laid over it: the upload's URL, the Media
+ * `small` size (512px WebP) where the object has a `texture` (a WebGL texture
+ * must not be a full-size photo), and its alt text unless the
+ * editor rewrote the code's. A crop tuned to the old photo is dropped. A
+ * decorative image (alt `""` in code) stays decorative.
+ */
+const withPhoto = (image: Plain, merged: Plain, photo: NonNullable<ReturnType<typeof uploaded>>): Plain => {
+  const out: Plain = { ...merged, [PHOTO]: photo.url };
+  if (typeof image.texture === "string") out.texture = photo.small ?? photo.url;
+  if ("crop" in image) delete out.crop;
+  if (typeof image.alt === "string" && image.alt !== "" && merged.alt === image.alt && photo.alt) {
+    out.alt = photo.alt;
+  }
+  return out;
+};
+
+/**
+ * An open list as the editor left it: their rows, in their order. A row tied to
+ * an item in code is that item with the copy laid over it; a row they added is
+ * built on the first item's shape, from their own lines and photo, and is kept
+ * only when it has all of them. Fewer usable rows than the floor — a database
+ * that predates the list, a half-made card — serves the code's list instead.
+ */
+const mergeOpenList = (base: readonly Plain[], patch: readonly unknown[], floor: number): readonly Plain[] => {
+  const template = base[0];
+  const rows = patch.flatMap((row, index): Plain[] => {
+    if (!isRecord(row)) return [];
+    const item = base.find((candidate) => candidate.id === row.key);
+    if (item) return [mergeText(item, row)];
+    if (missing(unionOf(base), row).length > 0) return [];
+    return [{ ...mergeText(template, row), id: `added-${String(row.id ?? index)}` }];
+  });
+  return rows.length >= floor ? rows : base;
+};
+
+/**
+ * Lay the admin's copy over the code's object. Returns the code's type: only
+ * strings are ever replaced, only by non-blank strings, and a photo's path only
+ * by an uploaded file's URL.
+ */
+export const mergeText = <T>(base: T, patch: unknown, key = ""): T => {
+  if (typeof base === "string") {
+    return (typeof patch === "string" && patch.trim() !== "" ? patch : base) as T;
+  }
+
+  if (isStringList(base)) {
+    if (!Array.isArray(patch)) return base;
+    const rows = patch.map((row) =>
+      isRecord(row) && typeof row.text === "string" ? row.text.trim() : "",
+    );
+    if (FIXED_LISTS.has(key)) return base.map((text, i) => rows[i] || text) as T;
+    const texts = rows.filter((text) => text !== "");
+    return (texts.length > 0 ? texts : base) as T;
+  }
+
+  if (isRecordList(base)) {
+    if (!Array.isArray(patch)) return base;
+    const open = OPEN_LISTS[key];
+    if (open) return mergeOpenList(base, patch, open.min) as T;
+    return base.map((item, i) => {
+      const byKey =
+        typeof item.id === "string"
+          ? patch.find((row) => isRecord(row) && row.key === item.id)
+          : undefined;
+      return mergeText(item, byKey ?? patch[i]);
+    }) as T;
+  }
+
+  if (isRecord(base)) {
+    if (!isRecord(patch)) return base;
+    const out: Plain = { ...base };
+    for (const [inner, value] of Object.entries(base)) {
+      if (inner === PHOTO || SKIP.has(inner)) continue;
+      out[inner] = mergeText(value, patch[inner], inner);
+    }
+    const photo = typeof base[PHOTO] === "string" ? uploaded(patch[PHOTO]) : undefined;
+    return (photo ? withPhoto(base, out, photo) : out) as T;
+  }
+
+  return base;
+};

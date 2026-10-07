@@ -32,6 +32,18 @@ interface MetadataProps {
   twitterHandle?: string;
   author?: string;
   siteName?: string;
+  /**
+   * The title is the whole `<title>` — not run through `· <brand>`. Set by
+   * the CMS (`cms/content.ts`): an editor writes, and the SEO plugin counts,
+   * exactly what a search result shows.
+   */
+  absoluteTitle?: boolean;
+  /** The share image's real size — an uploaded image passes its own. */
+  ogImageSize?: { width: number; height: number };
+  /** Keep the page out of search results (the 404, or an editor's choice). */
+  noIndex?: boolean;
+  /** `og:locale` — `language_REGION`. */
+  locale?: string;
 }
 
 export function generateMetadata({
@@ -44,10 +56,15 @@ export function generateMetadata({
   twitterHandle = siteConfig.twitterHandle,
   author = siteConfig.author,
   siteName = siteConfig.name,
+  absoluteTitle = false,
+  ogImageSize = { width: 1200, height: 630 },
+  noIndex = false,
+  locale = siteConfig.locale,
 }: MetadataProps = {}): Metadata {
-  // The `<title>`: the home title as is, a page title through the template.
-  const fullTitle = title ? `${title} · ${siteName}` : siteConfig.title;
-  const image = { url: ogImage, width: 1200, height: 630, alt: ogImageAlt };
+  // The `<title>`: the home title as is, a page title through the template
+  // (or as given, when the CMS wrote the whole of it).
+  const fullTitle = title ? (absoluteTitle ? title : `${title} · ${siteName}`) : siteConfig.title;
+  const image = { url: ogImage, ...ogImageSize, alt: ogImageAlt };
 
   return {
     // Resolves every relative URL below to an absolute one.
@@ -72,7 +89,7 @@ export function generateMetadata({
       // The image must really be 1200×630 — scrapers crop or letterbox a
       // mismatch. Replace the placeholder in public/.
       images: [image],
-      locale: siteConfig.locale,
+      locale,
       type: "website",
     },
     twitter: {
@@ -99,7 +116,7 @@ export function generateMetadata({
     },
     // `src/app/manifest.ts` is linked automatically.
     robots: {
-      index: true,
+      index: !noIndex,
       follow: true,
     },
   };

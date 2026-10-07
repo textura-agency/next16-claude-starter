@@ -22,7 +22,7 @@ documented here so every project built from this starter does it the same way.
 
 | Need | Choice | Note | Added by |
 |------|--------|------|----------|
-| CMS | **Payload**, inside this Next app | [[cms-payload]] | `/cms` |
+| CMS | **Payload**, inside this Next app — built by the [[cms-admin]] flow | [[cms-payload]] | `/cms` |
 | Database | **Supabase** Postgres | [[database-supabase]] | `/db` |
 | File storage | **Supabase Storage** (S3-compatible) | [[cms-payload]] | `/cms` |
 | Auth | **Supabase Auth** — only if real user accounts are needed | [[database-supabase]] | `supabase-auth` skill |

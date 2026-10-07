@@ -1,6 +1,6 @@
 ---
 tags: [frontend, stable]
-updated: 2026-10-06
+updated: 2026-10-07
 ---
 
 # Catalog — Utilities
@@ -83,12 +83,17 @@ used internally by the scroll/animation system. Marked `@ts-nocheck`. `#do-not-m
 ## `seo/generate-page-metadata.ts`
 
 `generateMetadata(props?)` — shared page-`Metadata` builder. `generateViewport()`
-— the `Viewport` export (carries `themeColor`). See [[seo-metadata]].
+— the `Viewport` export (carries `themeColor`). Optional `absoluteTitle`,
+`ogImageSize`, `noIndex`, `locale` let a CMS pass the whole `<title>`, an
+uploaded image's size and an editor's noindex ([[cms-payload]]); all default to
+the starter's behaviour. See [[seo-metadata]].
 
 ## `seo/structured-data.ts`
 
-`getSiteStructuredData()` — builds the `Organization` + `WebSite` JSON-LD graph
-rendered by the root layout. See [[seo-metadata]].
+`getSiteStructuredData(overrides?)` — builds the `Organization` + `WebSite`
+JSON-LD graph rendered by the root layout. Overrides (`name`, `legalName`,
+`description`, `logo`, `sameAs`) come from a CMS's SEO defaults; each falls back
+to `siteConfig`. See [[seo-metadata]].
 
 ## Adding a util
 

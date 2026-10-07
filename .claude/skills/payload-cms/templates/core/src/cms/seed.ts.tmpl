@@ -1,0 +1,71 @@
+// 📖 Docs: obsidian/backend/cms-payload.md
+/**
+ * The admin's one seed: the site's share image as a Media file, set as the
+ * SEO global's default share image.
+ *
+ * Every page's Open Graph image is the designed card in `public/open-graph.png`
+ * unless the admin says otherwise. An editor should see that card *in* the
+ * admin — on the Site defaults tab, replaceable like any upload — rather than
+ * read in a field's hint that a file in the code is standing in. So on init,
+ * once, the file is uploaded to Media and set as `site.image`.
+ *
+ * Idempotent, and it never throws: the Media file is looked up by name before
+ * it is uploaded, the global's field is set only while it is empty, and any
+ * failure (no database, a migration not yet run, storage away) is logged and
+ * the site keeps serving the file from `public/`.
+ */
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import type { Payload } from "payload";
+
+import { siteConfig } from "@/lib/site";
+
+const FILE = siteConfig.ogImage.replace(/^\//, "");
+/** What the card shows — the same words as `siteConfig.ogImageAlt`. */
+const ALT = siteConfig.ogImageAlt;
+
+/** The card's bytes — from `public/` on disk, else from the live site. */
+const readCard = async (): Promise<Buffer | undefined> => {
+  try {
+    return await readFile(path.join(process.cwd(), "public", FILE));
+  } catch {
+    try {
+      const response = await fetch(`${siteConfig.url}/${FILE}`);
+      return response.ok ? Buffer.from(await response.arrayBuffer()) : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+};
+
+export const seedShareImage = async (payload: Payload): Promise<void> => {
+  try {
+    const seo = await payload.findGlobal({ slug: "seo", depth: 0 });
+    if (seo.site?.image) return;
+
+    const existing = await payload.find({
+      collection: "media",
+      where: { filename: { equals: FILE } },
+      limit: 1,
+      depth: 0,
+    });
+    let id = existing.docs[0]?.id;
+    if (id === undefined) {
+      const data = await readCard();
+      if (!data) {
+        payload.logger.warn(`[seed] ${FILE} not found — the default share image stays in code`);
+        return;
+      }
+      const created = await payload.create({
+        collection: "media",
+        data: { alt: ALT },
+        file: { data, mimetype: "image/png", name: FILE, size: data.byteLength },
+      });
+      id = created.id;
+    }
+    await payload.updateGlobal({ slug: "seo", data: { site: { image: id } } });
+    payload.logger.info(`[seed] ${FILE} set as the default share image`);
+  } catch (error) {
+    payload.logger.warn({ err: error }, "[seed] default share image not seeded");
+  }
+};

@@ -1,0 +1,11 @@
+// 📖 Docs: obsidian/backend/cms-payload.md
+import type { CollectionConfig } from "payload";
+
+/** The admin's editors. Email + password; the first one is created at /admin. */
+export const Users: CollectionConfig = {
+  slug: "users",
+  labels: { singular: "User", plural: "Users" },
+  admin: { useAsTitle: "email", group: "Settings" },
+  auth: true,
+  fields: [{ name: "name", type: "text", label: "Name" }],
+};

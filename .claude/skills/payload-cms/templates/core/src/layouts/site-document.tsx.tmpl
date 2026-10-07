@@ -1,0 +1,59 @@
+// 📖 Docs: obsidian/backend/cms-payload.md → The two root layouts
+/**
+ * The public site's document — `<html>`, `<body>` and the chrome every page
+ * stands in.
+ *
+ * It lives here rather than in `app/(site)/layout.tsx` because two files render
+ * it: that layout, and `app/global-not-found.tsx`. The site shares the app with
+ * the Payload admin, which brings its own root layout, so the app has two root
+ * layouts and an unmatched URL belongs to neither — Next serves it from
+ * `global-not-found`, which has to stand the 404 in the same document by hand.
+ *
+ * MOVE the body of the old `app/layout.tsx` here when splitting — this file is
+ * the starter's layout as shipped; a project's layout has grown since. Keep it
+ * static (hard rule #15): the CMS reads below need no request.
+ */
+import { Onest } from "next/font/google";
+
+import { getStructuredData } from "@/cms/content";
+
+import { LazyCookie } from "@/components/common/Cookie";
+import { CONSENT_FLAG_SCRIPT } from "@/components/common/Cookie/consent-flag";
+import { AdaptiveGrid } from "@/components/common/grid";
+import { originSyncScript } from "@/components/common/origin-sync";
+import { ReducedMotion } from "@/components/common/reduced-motion";
+import { ScrollLayout } from "@/layouts/scroll-layout";
+import { siteConfig } from "@/lib/site";
+
+import "@/app/globals.css";
+
+const onest = Onest({
+  variable: "--font-onest",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+export const SiteDocument = async ({ children }: Readonly<{ children: React.ReactNode }>) => {
+  // The Organization + WebSite graph, from the admin's SEO defaults.
+  const structuredData = await getStructuredData();
+  return (
+    // `data-consent` is set on <html> by CONSENT_FLAG_SCRIPT before hydration.
+    <html lang={siteConfig.locale.split("_")[0]} suppressHydrationWarning>
+      <body className={`${onest.variable}`}>
+        <script dangerouslySetInnerHTML={{ __html: CONSENT_FLAG_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: originSyncScript(siteConfig.url) }} />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        />
+        <ScrollLayout>
+          <AdaptiveGrid />
+          <ReducedMotion />
+          <LazyCookie />
+          {/* [analytics kit] <AnalyticsBeacon /> goes here. */}
+          {children}
+        </ScrollLayout>
+      </body>
+    </html>
+  );
+};

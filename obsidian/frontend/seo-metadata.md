@@ -1,6 +1,6 @@
 ---
 tags: [frontend, seo, stable]
-updated: 2026-10-06
+updated: 2026-10-07
 ---
 
 # SEO & Metadata
@@ -73,6 +73,11 @@ export const aboutMetadata = generateMetadata({
 });
 ```
 
+With a CMS ([[cms-payload]]) the page's `<head>` comes from the admin's SEO
+global through `getPageMetadata()`, which passes `absoluteTitle: true` (the
+editor writes the whole `<title>`), the upload's `ogImageSize`, `noIndex` and
+`locale`. All four default to the starter's behaviour.
+
 - `metadataBase` is always set from `siteConfig.url`, so relative URLs resolve
   to absolute — required by social scrapers.
 - OG and Twitter images are declared **1200×630 with `alt`** — the file must
@@ -143,7 +148,9 @@ intro gate.
 
 `src/utils/seo/structured-data.ts` → `getSiteStructuredData()` builds an
 `Organization` + `WebSite` graph from `siteConfig`, rendered once by the root
-layout. Point `logo` at the brand's real mark once it exists.
+layout. Point `logo` at the brand's real mark once it exists. It also takes overrides
+(`name`, `legalName`, `description`, `logo`, `sameAs`) — the CMS passes the SEO
+global's Site defaults.
 
 ## Bot detection
 

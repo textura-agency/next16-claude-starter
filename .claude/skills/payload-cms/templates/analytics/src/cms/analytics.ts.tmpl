@@ -1,0 +1,312 @@
+// 📖 Docs: obsidian/backend/cms-payload.md → Analytics
+/**
+ * The admin's light analytics — recording a view and reading the numbers back
+ *.
+ *
+ * Self-hosted in the CMS's own Postgres: no third-party script, no cookie of
+ * its own. A view is recorded only when the visitor allowed analytics in the
+ * cookie banner (the beacon checks), and never for bots, the admin, or a
+ * browser that asks not to be tracked (the route checks).
+ *
+ * "Visitors" are counted per day: the visitor hash is salted with the date, so
+ * one person is one visitor per day and cannot be linked across days. Over a
+ * range, visitors are therefore the sum of each day's — what most privacy-
+ * first tools call "visits".
+ *
+ * Time on page is the time the page was *visible*, reported by the beacon as
+ * the visitor leaves; it can only be written once per view, and only by the
+ * same visitor hash that created it.
+ */
+import "server-only";
+
+import { createHash } from "node:crypto";
+
+import { sql } from "@payloadcms/db-postgres";
+import type { PostgresAdapter } from "@payloadcms/db-postgres";
+import { getPayload } from "payload";
+
+import config from "@payload-config";
+import { getServerEnv } from "@/env";
+
+/** Fourteen months. PROJECT CONFIG — the privacy policy's retention figure, in days; the two must agree. */
+const RETENTION_DAYS = 427;
+
+/** A view longer than this is a tab left open, not reading. */
+export const MAX_DURATION_S = 30 * 60;
+
+export type Device = "desktop" | "tablet" | "mobile";
+
+const deviceOf = (ua: string): Device => {
+  if (/ipad|tablet|(android(?!.*mobile))/i.test(ua)) return "tablet";
+  if (/mobi|iphone|android/i.test(ua)) return "mobile";
+  return "desktop";
+};
+
+const browserOf = (ua: string): string => {
+  if (/edg\//i.test(ua)) return "Edge";
+  if (/opr\/|opera/i.test(ua)) return "Opera";
+  if (/yabrowser/i.test(ua)) return "Yandex";
+  if (/samsungbrowser/i.test(ua)) return "Samsung Internet";
+  if (/firefox|fxios/i.test(ua)) return "Firefox";
+  if (/chrome|crios/i.test(ua)) return "Chrome";
+  if (/safari/i.test(ua)) return "Safari";
+  return "Other";
+};
+
+const osOf = (ua: string): string => {
+  if (/iphone|ipad|ipod/i.test(ua)) return "iOS";
+  if (/android/i.test(ua)) return "Android";
+  if (/windows/i.test(ua)) return "Windows";
+  if (/mac os x|macintosh/i.test(ua)) return "macOS";
+  if (/cros/i.test(ua)) return "ChromeOS";
+  if (/linux/i.test(ua)) return "Linux";
+  return "Other";
+};
+
+const BOT = /bot|crawl|spider|slurp|lighthouse|pagespeed|headless|gtmetrix|pingdom|preview|monitor/i;
+
+/** The country the host's edge reports, or a guess from the browser language. */
+const countryOf = (
+  edgeCountry: string | undefined,
+  acceptLanguage: string,
+): { country?: string; approx: boolean } => {
+  const edge = edgeCountry?.trim().toUpperCase();
+  if (edge && /^[A-Z]{2}$/.test(edge) && edge !== "XX") return { country: edge, approx: false };
+  const region = /^[a-z]{2,3}-([A-Za-z]{2})\b/.exec(acceptLanguage.trim())?.[1];
+  return region ? { country: region.toUpperCase(), approx: true } : { approx: false };
+};
+
+const languageOf = (acceptLanguage: string): string | undefined =>
+  /^([a-z]{2,3})\b/i.exec(acceptLanguage.trim())?.[1]?.toLowerCase();
+
+export interface RequestFacts {
+  ip: string;
+  userAgent: string;
+  host: string;
+  acceptLanguage: string;
+  edgeCountry?: string;
+}
+
+const visitorOf = (secret: string, facts: RequestFacts): string => {
+  const day = new Date().toISOString().slice(0, 10);
+  return createHash("sha256")
+    .update(`${secret}|${day}|${facts.ip}|${facts.userAgent}`)
+    .digest("hex")
+    .slice(0, 24);
+};
+
+const countable = (facts: RequestFacts): string | null => {
+  const { DATABASE_URL, PAYLOAD_SECRET } = getServerEnv();
+  if (!DATABASE_URL || !PAYLOAD_SECRET) return null;
+  if (!facts.userAgent || BOT.test(facts.userAgent)) return null;
+  return PAYLOAD_SECRET;
+};
+
+/** Store one view. Returns its id, or null when the request is not one to count. */
+export const recordView = async (
+  view: { path: string; referrer?: string },
+  facts: RequestFacts,
+): Promise<string | number | null> => {
+  const secret = countable(facts);
+  if (!secret) return null;
+  if (view.path.startsWith("/admin") || view.path.startsWith("/api")) return null;
+
+  // Only another site's host is a referrer; moving between our own pages is not.
+  let referrer: string | undefined;
+  if (view.referrer) {
+    try {
+      const host = new URL(view.referrer).hostname.replace(/^www\./, "");
+      if (host && host !== facts.host.replace(/^www\./, "").split(":")[0]) referrer = host;
+    } catch {
+      referrer = undefined;
+    }
+  }
+
+  const { country, approx } = countryOf(facts.edgeCountry, facts.acceptLanguage);
+  const payload = await getPayload({ config });
+  const doc = await payload.create({
+    collection: "page-views",
+    overrideAccess: true,
+    data: {
+      path: view.path,
+      visitor: visitorOf(secret, facts),
+      referrer,
+      device: deviceOf(facts.userAgent),
+      browser: browserOf(facts.userAgent),
+      os: osOf(facts.userAgent),
+      country,
+      countryApprox: approx,
+      language: languageOf(facts.acceptLanguage),
+    },
+  });
+
+  // Housekeeping on roughly one view in a hundred: drop what is past retention.
+  if (Math.random() < 0.01) {
+    const cutoff = new Date(Date.now() - RETENTION_DAYS * 86_400_000).toISOString();
+    await payload.delete({
+      collection: "page-views",
+      overrideAccess: true,
+      where: { createdAt: { less_than: cutoff } },
+    });
+  }
+  return doc.id;
+};
+
+/**
+ * Write a view's time on page — once, and only from the visitor who made it
+ * (same day hash), so the endpoint cannot be used to rewrite other rows.
+ */
+export const recordDuration = async (
+  id: string | number,
+  seconds: number,
+  facts: RequestFacts,
+): Promise<boolean> => {
+  const secret = countable(facts);
+  if (!secret) return false;
+  const payload = await getPayload({ config });
+  const result = await payload.update({
+    collection: "page-views",
+    overrideAccess: true,
+    where: {
+      and: [
+        { id: { equals: id } },
+        { visitor: { equals: visitorOf(secret, facts) } },
+        { duration: { exists: false } },
+      ],
+    },
+    data: { duration: Math.min(Math.max(Math.round(seconds), 0), MAX_DURATION_S) },
+  });
+  return result.docs.length > 0;
+};
+
+export interface Ranked {
+  label: string;
+  count: number;
+  /** Average seconds on page, where the list is of pages. */
+  seconds?: number;
+}
+
+export interface DayPoint {
+  day: string;
+  views: number;
+  visitors: number;
+  seconds: number;
+}
+
+export interface AnalyticsStats {
+  days: number;
+  views: number;
+  visitors: number;
+  avgSeconds: number;
+  bounceRate: number;
+  liveVisitors: number;
+  previous: { views: number; visitors: number; avgSeconds: number; bounceRate: number };
+  daily: DayPoint[];
+  pages: Ranked[];
+  referrers: Ranked[];
+  devices: Ranked[];
+  browsers: Ranked[];
+  systems: Ranked[];
+  countries: Ranked[];
+  languages: Ranked[];
+  countriesApprox: boolean;
+}
+
+type Row = Record<string, unknown>;
+
+const num = (value: unknown): number => Number(value ?? 0) || 0;
+
+/** The numbers for the last `days` days, today included. */
+export const readStats = async (days: number): Promise<AnalyticsStats> => {
+  const payload = await getPayload({ config });
+  const db = (payload.db as unknown as PostgresAdapter).drizzle;
+  const run = async (query: ReturnType<typeof sql>): Promise<Row[]> =>
+    ((await db.execute(query)) as unknown as { rows: Row[] }).rows;
+
+  const since = sql`date_trunc('day', now()) - (${days - 1} * interval '1 day')`;
+  const before = sql`date_trunc('day', now()) - (${2 * days - 1} * interval '1 day')`;
+
+  // Totals for a window: views, daily visitors, average visible time, and the
+  // share of visitor-days that saw a single page (bounces).
+  const totalsFor = (from: ReturnType<typeof sql>, to: ReturnType<typeof sql>) =>
+    run(sql`with v as (
+              select visitor, date_trunc('day', created_at) as d, duration
+              from page_views where created_at >= ${from} and created_at < ${to}
+            ), s as (
+              select visitor, d, count(*) as n from v group by visitor, d
+            )
+            select (select count(*) from v) as views,
+                   (select count(*) from s) as visitors,
+                   (select coalesce(avg(duration), 0) from v where duration is not null) as seconds,
+                   (select coalesce(avg(case when n = 1 then 1.0 else 0 end), 0) from s) as bounce`);
+
+  const ranked = (rows: Row[]): Ranked[] =>
+    rows.map((row) => ({
+      label: String(row.label),
+      count: num(row.count),
+      ...(row.seconds !== undefined ? { seconds: num(row.seconds) } : {}),
+    }));
+
+  const [totals, previous, live, daily, pages, referrers, devices, browsers, systems, countries, languages] =
+    await Promise.all([
+      totalsFor(since, sql`now() + interval '1 day'`),
+      totalsFor(before, since),
+      run(sql`select count(distinct visitor) as visitors
+              from page_views where created_at >= now() - interval '30 minutes'`),
+      run(sql`select to_char(d, 'YYYY-MM-DD') as day,
+                     count(v.id) as views, count(distinct v.visitor) as visitors,
+                     coalesce(avg(v.duration), 0) as seconds
+              from generate_series(${since}, date_trunc('day', now()), interval '1 day') as d
+              left join page_views v on date_trunc('day', v.created_at) = d
+              group by d order by d`),
+      run(sql`select path as label, count(*) as count, coalesce(avg(duration), 0) as seconds
+              from page_views where created_at >= ${since}
+              group by path order by count desc limit 8`),
+      run(sql`select coalesce(referrer, 'Direct / none') as label, count(*) as count
+              from page_views where created_at >= ${since}
+              group by 1 order by count desc limit 8`),
+      run(sql`select coalesce(device::text, 'unknown') as label, count(*) as count
+              from page_views where created_at >= ${since} group by 1 order by count desc`),
+      run(sql`select coalesce(browser, 'Other') as label, count(*) as count
+              from page_views where created_at >= ${since} group by 1 order by count desc limit 6`),
+      run(sql`select coalesce(os, 'Other') as label, count(*) as count
+              from page_views where created_at >= ${since} group by 1 order by count desc limit 6`),
+      run(sql`select country as label, count(*) as count, bool_or(country_approx) as approx
+              from page_views where created_at >= ${since} and country is not null
+              group by 1 order by count desc limit 8`),
+      run(sql`select language as label, count(*) as count
+              from page_views where created_at >= ${since} and language is not null
+              group by 1 order by count desc limit 6`),
+    ]);
+
+  const t = totals[0] ?? {};
+  const p = previous[0] ?? {};
+  return {
+    days,
+    views: num(t.views),
+    visitors: num(t.visitors),
+    avgSeconds: num(t.seconds),
+    bounceRate: num(t.bounce),
+    liveVisitors: num(live[0]?.visitors),
+    previous: {
+      views: num(p.views),
+      visitors: num(p.visitors),
+      avgSeconds: num(p.seconds),
+      bounceRate: num(p.bounce),
+    },
+    daily: daily.map((row) => ({
+      day: String(row.day),
+      views: num(row.views),
+      visitors: num(row.visitors),
+      seconds: num(row.seconds),
+    })),
+    pages: ranked(pages),
+    referrers: ranked(referrers),
+    devices: ranked(devices),
+    browsers: ranked(browsers),
+    systems: ranked(systems),
+    countries: ranked(countries),
+    languages: ranked(languages),
+    countriesApprox: countries.some((row) => row.approx === true),
+  };
+};

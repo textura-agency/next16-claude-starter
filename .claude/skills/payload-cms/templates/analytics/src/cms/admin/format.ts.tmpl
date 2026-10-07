@@ -1,0 +1,14 @@
+// 📖 Docs: obsidian/backend/cms-payload.md → Analytics
+/**
+ * Formatting shared by the analytics view's server parts and its client chart
+ * — kept out of `analytics-chart.tsx`, whose `"use client"` would turn any
+ * export into a client reference a server component cannot call.
+ */
+
+/** Seconds as "2m 05s", or "42s" under a minute. */
+export const duration = (seconds: number): string => {
+  if (seconds <= 0) return "0s";
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds % 60);
+  return m > 0 ? `${m}m ${String(s).padStart(2, "0")}s` : `${s}s`;
+};

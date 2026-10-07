@@ -1,0 +1,97 @@
+// 📖 Docs: obsidian/backend/cms-payload.md → The guide
+/**
+ * The editor's guide without Payload's frame: the content of
+ * `guide-content.tsx` laid out as chapters, entries and their screenshots.
+ * `guide-view.tsx` puts it inside the admin template; a render check can
+ * render it alone, which is why it does not import anything of Payload's.
+ */
+import Image from "next/image";
+
+import { siteConfig } from "@/lib/site";
+
+import { ANALYTICS, CHAPTERS, INTRO, SEO, SETTINGS } from "./guide-content";
+
+const SHOTS = "/admin-guide";
+
+/** A chapter's heading with its anchor. */
+const Heading = ({ id, title, lead }: { id: string; title: string; lead?: string }) => (
+  <header className="cg-chapter__head">
+    <h2 id={id} className="cg-chapter__title">
+      {title}
+    </h2>
+    {lead ? <p className="cg-chapter__lead">{lead}</p> : null}
+  </header>
+);
+
+const PlainList = ({ id, title, lead, points }: (typeof INTRO)) => (
+  <section className="cg-chapter" aria-labelledby={id}>
+    <Heading id={id} title={title} lead={lead} />
+    <ul className="cg-points">
+      {points.map((point) => (
+        <li key={point}>{point}</li>
+      ))}
+    </ul>
+  </section>
+);
+
+const Chapter = ({ id, title, lead, entries }: (typeof CHAPTERS)[number]) => (
+  <section className="cg-chapter" aria-labelledby={id}>
+    <Heading id={id} title={title} lead={lead} />
+    {entries.map((entry) => (
+      <article key={entry.where} className={`cg-entry${entry.shot ? "" : " cg-entry--text"}`}>
+        {entry.shot ? (
+          <figure className="cg-entry__shot">
+            <Image src={`${SHOTS}/${entry.shot}.webp`} alt="" width={1200} height={750} sizes="(max-width: 900px) 100vw, 640px" />
+          </figure>
+        ) : null}
+        <div className="cg-entry__body">
+          <p className="cg-entry__where">{entry.where}</p>
+          <h3 className="cg-entry__title">{entry.title}</h3>
+          <p className="cg-entry__label">What you edit</p>
+          <ul className="cg-entry__fields">
+            {entry.fields.map((field) => (
+              <li key={field}>{field}</li>
+            ))}
+          </ul>
+          {entry.notes?.map((note) => (
+            <p key={note} className="cg-entry__note">
+              {note}
+            </p>
+          ))}
+        </div>
+      </article>
+    ))}
+  </section>
+);
+
+const TOC = [INTRO, ...CHAPTERS, SEO, ANALYTICS, SETTINGS];
+
+/** The guide without Payload's frame. */
+export const GuideBody = () => (
+  <div className="cg gutter--left gutter--right">
+    <header className="cg-head">
+      <p className="cg-head__eyebrow">
+        {siteConfig.name} <span>Content</span>
+      </p>
+      <h1 className="cg-head__title">Editor’s guide</h1>
+      <p className="cg-head__copy">
+        Every screen of the site, the entry that edits it, and what each field changes. Then
+        what the SEO tabs and Analytics show.
+      </p>
+      <nav className="cg-toc" aria-label="Contents">
+        {TOC.map((item) => (
+          <a key={item.id} href={`#${item.id}`}>
+            {item.title}
+          </a>
+        ))}
+      </nav>
+    </header>
+    <PlainList {...INTRO} />
+    {CHAPTERS.map((chapter) => (
+      <Chapter key={chapter.id} {...chapter} />
+    ))}
+    <Chapter {...SEO} />
+    <PlainList {...ANALYTICS} />
+    <PlainList {...SETTINGS} />
+  </div>
+);

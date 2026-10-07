@@ -1,0 +1,47 @@
+// 📖 Docs: obsidian/backend/cms-payload.md → Analytics
+import type { CollectionConfig } from "payload";
+
+/**
+ * One row per page view — the admin's light analytics.
+ *
+ * Written only by `/api/track`, and only for a visitor who allowed analytics
+ * in the cookie banner. Nothing here identifies a person: `visitor` is a hash
+ * of a per-day salt, the IP and the user agent, so it counts unique visitors
+ * within a day and cannot follow anyone across days; the IP itself is never
+ * stored. Rows older than fourteen months are deleted, as the privacy policy
+ * promises.
+ *
+ * Hidden from the nav — editors read it through the Analytics view, not as a
+ * list of rows.
+ */
+export const PageViews: CollectionConfig = {
+  slug: "page-views",
+  labels: { singular: "Page view", plural: "Page views" },
+  admin: { hidden: true, group: "Settings" },
+  // Read by signed-in editors only; written in process by the track route.
+  access: {
+    read: ({ req }) => Boolean(req.user),
+    create: () => false,
+    update: () => false,
+    delete: ({ req }) => Boolean(req.user),
+  },
+  fields: [
+    { name: "path", type: "text", required: true, index: true },
+    { name: "visitor", type: "text", required: true, index: true },
+    { name: "referrer", type: "text", index: true },
+    {
+      name: "device",
+      type: "select",
+      options: ["desktop", "tablet", "mobile"],
+      index: true,
+    },
+    { name: "browser", type: "text" },
+    { name: "os", type: "text" },
+    /** ISO country code; `countryApprox` when guessed from the browser language. */
+    { name: "country", type: "text", index: true },
+    { name: "countryApprox", type: "checkbox", defaultValue: false },
+    { name: "language", type: "text" },
+    /** Seconds the page was visible, reported when the visitor leaves it. */
+    { name: "duration", type: "number" },
+  ],
+};

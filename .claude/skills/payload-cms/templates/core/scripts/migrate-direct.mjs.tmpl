@@ -1,0 +1,38 @@
+// 📖 Docs: obsidian/backend/cms-payload.md
+/**
+ * `yarn migrate:direct [command]` — run a Payload migration command over
+ * Supabase's **direct** connection.
+ *
+ * The app runs on the transaction pooler (`DATABASE_URL`, 6543), which cannot
+ * run DDL safely. This loads the project's env files, puts
+ * `DATABASE_URL_DIRECT` (5432) in `DATABASE_URL`'s place for this process only,
+ * and hands over to the Payload CLI. Nothing is printed about either value.
+ *
+ *   yarn migrate:direct                 → payload migrate
+ *   yarn migrate:direct status          → payload migrate:status
+ *   yarn migrate:direct create <name>   → payload migrate:create <name>
+ *
+ * `create` runs through here too: the Payload CLI on its own does not load
+ * `.env.local`, so a bare `yarn migrate:create` stops at "missing secret key".
+ */
+import { spawnSync } from "node:child_process";
+
+import nextEnv from "@next/env";
+
+nextEnv.loadEnvConfig(process.cwd());
+
+const direct = process.env.DATABASE_URL_DIRECT;
+if (!direct) {
+  console.error("DATABASE_URL_DIRECT is empty — fill it in .env (see .env.example).");
+  process.exit(1);
+}
+
+const sub = process.argv[2];
+const command = sub ? `migrate:${sub}` : "migrate";
+
+const result = spawnSync("yarn", ["payload", command, ...process.argv.slice(3)], {
+  stdio: "inherit",
+  shell: true,
+  env: { ...process.env, DATABASE_URL: direct },
+});
+process.exit(result.status ?? 1);

@@ -1,6 +1,6 @@
 ---
 tags: [moc, home]
-updated: 2026-10-06
+updated: 2026-10-07
 ---
 
 # 🧠 next16-claude-starter — Project Brain
@@ -64,6 +64,7 @@ humans and AI agents (Claude Code, Cursor).
 - [[generic-layout-prompt]] — fill-in prompt template for a new page/section
 - [[figma-to-code]] — turning a Figma frame into components
 - [[qa-verification]] — how work is checked before it is called done
+- [[cms-admin]] — the CMS admin flow: every string editable, SEO per page, the site's look, analytics, an editor's guide
 - [[ship]] — the pre-launch gate and deployment
 - [[seo-aeo]] — SEO & answer-engine visibility as an ongoing practice
 - [[site-migration]] — protecting rankings when rebuilding a live site

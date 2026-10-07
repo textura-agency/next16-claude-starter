@@ -1,6 +1,6 @@
 ---
 tags: [knowledge, pitfalls, performance, stable]
-updated: 2026-10-06
+updated: 2026-10-07
 ---
 
 # Pitfalls
@@ -274,6 +274,40 @@ did work are in [[fix-catalog]]; how to add to either: [[knowledge/README]].
 - **`object-cover` on Figma-cropped images**, or `image-aspect-ratio` fails off
   the comp's breakpoint.
 - **A custom cursor never hides the native cursor**, and is off on touch.
+
+## 6. CMS (Payload) traps
+
+- **The Payload CLI on Node 20.17 does nothing — and says nothing.**
+  `generate:importmap` / `generate:types` / `migrate:*` exit 0 without writing a
+  file; the admin then renders without its custom components, or with stale
+  types. On one site the workaround written down was "call the bin directly
+  with `--force`"; reproducing it for the starter showed the real variable was
+  the Node version (20.17: silent; 24: writes the map). Pin Node ≥ 22 in
+  `.nvmrc`; `node -v` before any Payload command.
+- **A `$` in the database password is silently eaten.** `@next/env` expands
+  `$abc…` as a variable, so the URL authenticates with a shorter password and
+  fails with an auth error that points nowhere near the env file. A raw `%`
+  throws "URI malformed". Percent-encode, or use letters and digits.
+- **Supabase's Direct host is IPv6-only** → `ENOTFOUND` on an IPv4 network; it
+  looks like a wrong host. Migrations go over the session pooler (5432).
+- **`.env.local` overrides `.env`** — a stale `DATABASE_URL` there pointed a
+  laptop at a retired Docker database while `.env` was correct.
+- **Drizzle's rename prompt can't be answered non-interactively** — the
+  migration hangs or guesses. Split into drop + add, or hand-write it and patch
+  the `.json` snapshot.
+- **Block-per-paragraph legal pages had to be migrated away** (24 tables) the
+  first time the owner wanted a bold word or an inline link. Start with rich text.
+- **"Accept all" saved analytics off** on an older consent store — the
+  analytics switch existed with nothing behind it, and every "Accept all" would
+  have counted as a refusal. Check `acceptAll` before trusting a consent-gated
+  count.
+- **A route that reads the CMS is still static** — it needs no `headers()` or
+  `dynamic`; the Local API runs at build time and the globals' `afterChange`
+  revalidates. Keep it static (hard rule #15).
+- **Payload's admin class names are not a public API**, and its own borders
+  and 4px corners show through a skin that only re-rounds the outer frame
+  (array rows looked broken until the frame clipped with `overflow: hidden`).
+  Tour the admin after every Payload upgrade.
 
 ## Related
 

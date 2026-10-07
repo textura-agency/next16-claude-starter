@@ -1,0 +1,107 @@
+"use client";
+// 📖 Docs: obsidian/backend/cms-payload.md
+/**
+ * How a link to the page will look — the card a chat or a feed draws from the
+ * page's Open Graph tags, built from the tab's own fields with the site's
+ * fallbacks applied: the page's share image, else the site
+ * default's, else the designed card in `public/open-graph.png`; the title and
+ * description the same way; the canonical address under it.
+ *
+ * The images are uploads, so the form holds their ids; each is read once from
+ * the admin's own API for its URL and alt.
+ */
+import { useEffect, useState } from "react";
+import { useAllFormFields, useConfig } from "@payloadcms/ui";
+
+import { SEO_PAGES, SEO_SITE } from "@/cms/seo-pages";
+
+interface SharePreviewProps {
+  /** The tab — a page's name from `SEO_PAGES`, or `site` for the defaults. */
+  page: string;
+  /** The page's own address, shown when no canonical is set. */
+  path: string;
+}
+
+interface Upload {
+  url: string;
+  alt: string;
+}
+
+const text = (value: unknown): string | undefined =>
+  typeof value === "string" && value.trim() !== "" ? value.trim() : undefined;
+
+/** An upload field holds an id, or the whole document once it has been read. */
+const uploadId = (value: unknown): number | string | undefined => {
+  if (typeof value === "number" || typeof value === "string") return value;
+  if (typeof value === "object" && value !== null && "id" in value) {
+    const id = (value as { id: unknown }).id;
+    if (typeof id === "number" || typeof id === "string") return id;
+  }
+  return undefined;
+};
+
+/** The upload behind an id — `null` while it is being read or when there is none. */
+const useUpload = (id: number | string | undefined): Upload | null => {
+  const { config } = useConfig();
+  const [upload, setUpload] = useState<Upload | null>(null);
+  useEffect(() => {
+    if (id === undefined) {
+      setUpload(null);
+      return;
+    }
+    let live = true;
+    fetch(`${config.serverURL}${config.routes.api}/media/${id}`, { credentials: "include" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((doc: unknown) => {
+        if (!live || typeof doc !== "object" || doc === null) return;
+        const { url, alt } = doc as { url?: unknown; alt?: unknown };
+        setUpload(typeof url === "string" ? { url, alt: typeof alt === "string" ? alt : "" } : null);
+      })
+      .catch(() => {
+        if (live) setUpload(null);
+      });
+    return () => {
+      live = false;
+    };
+  }, [id, config.serverURL, config.routes.api]);
+  return upload;
+};
+
+export const SharePreview = ({ page, path }: SharePreviewProps) => {
+  const [fields] = useAllFormFields();
+  const at = (field: string): unknown => fields[`${page}.${field}`]?.value;
+  const site = (field: string): unknown => fields[`site.${field}`]?.value;
+  const entry = SEO_PAGES.find((candidate) => candidate.name === page);
+
+  const own = useUpload(uploadId(at("image")));
+  const fallback = useUpload(page === "site" ? undefined : uploadId(site("image")));
+  const image = own ?? fallback ?? { url: SEO_SITE.image, alt: "" };
+
+  const siteName = text(site("siteName")) ?? SEO_SITE.siteName;
+  const title = text(at("title")) ?? entry?.title ?? siteName;
+  const description =
+    text(at("description")) ?? entry?.description ?? text(site("description")) ?? SEO_SITE.description;
+  const address = text(at("canonical")) ?? path;
+
+  return (
+    <section className="cms-share" aria-label="Link preview">
+      <p className="cms-share__label">How a link to this page looks</p>
+      <figure className="cms-share__card">
+        {/* The admin's own image, not `next/image` — a preview of whatever URL the upload has. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className="cms-share__image" src={image.url} alt={image.alt} width={1200} height={630} />
+        <figcaption className="cms-share__body">
+          <span className="cms-share__site">{siteName}</span>
+          <strong className="cms-share__title">{title}</strong>
+          <span className="cms-share__description">{description}</span>
+          <span className="cms-share__address">{address}</span>
+        </figcaption>
+      </figure>
+      {page !== "site" && own === null && (
+        <p className="cms-share__note">
+          {fallback ? "Showing the site's default share image." : "Showing the site's own card — upload an image above to replace it."}
+        </p>
+      )}
+    </section>
+  );
+};

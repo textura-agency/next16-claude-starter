@@ -43,6 +43,7 @@ GPU on, never a bundled Chromium.
 | A still of the scene for the robot form | `capture-still.mjs` | `qa:still` | still not blank |
 | Favicons + share image from the mark and the hero | `brand-kit.mjs` | `qa:brand` | share image not blank |
 | iOS-only canvas bugs (WebKit, touch flicks) | `webkit-probe.mjs` | `qa:webkit` | every on-screen canvas shown + drawing |
+| Screens for the CMS editor's guide | `admin-shots.mjs` | `qa:shots` | every target found, no blank shot |
 
 The mechanical source checks are `.claude/scripts/verify.sh` (`yarn verify`) —
 run it first; it takes a third of a second.
@@ -204,6 +205,17 @@ Emulated iPhone, follows one canvas: away and back `--cycles` times, then
 screen. After each return: a canvas, a live context, draw calls, a lit buffer
 (the probe forces `preserveDrawingBuffer` to read it), and the time to the
 first lit frame. Fix: `src/lib/scene/webgl-context.ts` (`keepSceneAlive`).
+
+### admin-shots.mjs — the editor's guide's screenshots
+
+`--shots "name=target,…"` — a target is a selector on `/`, a `/path`, or
+`/path#selector`. Each is shot at 1440 × 900 straight to 1200 px WebP
+(`deviceScaleFactor` 1200/1440, ~40 KB), as a person (plain UA), with a stored
+"decided" consent so the banner stays away and the analytics beacon sends
+nothing, Next's dev overlay hidden, the section scrolled in through the page's
+scroller and given `--settle` ms to finish its entrance. Without `--save` they
+go to the report dir: look at each, then `--save public/admin-guide`. Used by
+the `payload-admin` skill's §Guide.
 
 ### webkit-probe.mjs — the iOS-only bugs
 `--url` · `--device "iPhone 13"` · `--iterations 2` · `--wait 9000` · `--shots` · `--faults` · `--gpu-kill` · `--headed`

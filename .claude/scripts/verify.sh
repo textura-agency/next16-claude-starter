@@ -40,8 +40,10 @@ report() {
 
 # All source, including the vendored engine. Comment lines don't count.
 SRC() { grep -rEn --include='*.tsx' --include='*.ts' "$1" "${SCOPE[@]}" 2>/dev/null | grep -vE '^[^:]+:[0-9]+:[[:space:]]*(\*|//|/\*)'; }
-# App source only — excludes the vendored animation engine (#do-not-modify).
-APP() { SRC "$1" | grep -v 'components/animation/springs/' | grep -v 'hooks/animation/'; }
+# App source only — excludes the vendored animation engine (#do-not-modify) and,
+# once a project adds Payload, its generated types (rich text types its nodes
+# `any`, and `generate:types` rewrites the file).
+APP() { SRC "$1" | grep -v 'components/animation/springs/' | grep -v 'hooks/animation/' | grep -v 'src/payload-types.ts'; }
 CSS() { grep -rEn --include='*.css' "$1" "${SCOPE[@]}" 2>/dev/null; }
 
 echo "── Motion (hard rules #1–#3) ─────────────────────────────────"
@@ -107,7 +109,8 @@ while IFS= read -r p; do
   [ -z "$p" ] && continue
   bad="$(grep -nE "^import " "$p" | grep -vE "from ['\"](@/views/|next(/|\")|react(/|\"))" || true)"
   [ -n "$bad" ] && route_violations="${route_violations}${p}: ${bad}"$'\n'
-done < <(find src/app -name 'page.tsx' 2>/dev/null)
+# `(payload)` is Payload's generated admin plumbing, not a site route.
+done < <(find src/app -name 'page.tsx' -not -path 'src/app/(payload)/*' 2>/dev/null)
 report FAIL "route imports something other than a view" \
   "app/**/page.tsx delegates only — import from @/views (ADR-0003)." "$route_violations"
 

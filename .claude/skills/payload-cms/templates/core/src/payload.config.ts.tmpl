@@ -1,0 +1,142 @@
+// 📖 Docs: obsidian/backend/cms-payload.md
+/**
+ * Payload, installed inside this Next app — the admin at `/admin`, its API at
+ * `/api/*` beside the site's own routes, one build and one deploy.
+ *
+ * The site reads it through the Local API (`src/cms/content.ts`), in process.
+ * Schema changes ship as migrations (`src/migrations`), never `push`, so the
+ * same steps run on every machine and on the host.
+ *
+ * Kits (the `payload-cms` skill): core is this file as-is. The admin kit
+ * fills `graphics` / `beforeDashboard` / `afterNavLinks`; analytics adds the
+ * PageViews collection, its dashboard card, nav link and view; the guide adds
+ * its nav link and view. Each kit's lines are marked — delete what is not
+ * installed, then `yarn generate:importmap`.
+ */
+import path from "path";
+import { fileURLToPath } from "url";
+
+import { postgresAdapter } from "@payloadcms/db-postgres";
+import { seoPlugin } from "@payloadcms/plugin-seo";
+import { s3Storage } from "@payloadcms/storage-s3";
+import { lexicalEditor } from "@payloadcms/richtext-lexical";
+import { en } from "@payloadcms/translations/languages/en";
+import { buildConfig } from "payload";
+import sharp from "sharp";
+
+import { getServerEnv } from "./env";
+import { siteConfig } from "./lib/site";
+
+import { Media } from "./cms/collections/media";
+import { seedShareImage } from "./cms/seed";
+import { PageViews } from "./cms/collections/page-views"; // [analytics kit]
+import { Users } from "./cms/collections/users";
+import { globals } from "./cms/globals";
+
+const dirname = path.dirname(fileURLToPath(import.meta.url));
+const env = getServerEnv();
+
+/*
+  Supabase Storage, through its S3-compatible API. On only when all
+  five values are set; otherwise Media keeps writing to `/media` on disk, which
+  is fine on a laptop and loses files on a serverless host.
+  `forcePathStyle` is required: Supabase does not serve virtual-host URLs, and
+  without it every upload 404s.
+  The plugin is always registered (`enabled` follows the env) with
+  `alwaysInsertFields`, so the schema — and the migrations — are the same
+  whether or not storage is configured.
+  Files are linked straight from the public bucket, not streamed through
+  `/api/media/file`: `next/image` and WebGL loaders fetch them from
+  Supabase's CDN.
+*/
+const s3 =
+  env.S3_BUCKET && env.S3_ENDPOINT && env.S3_REGION && env.S3_ACCESS_KEY_ID && env.S3_SECRET_ACCESS_KEY
+    ? {
+        bucket: env.S3_BUCKET,
+        endpoint: env.S3_ENDPOINT,
+        region: env.S3_REGION,
+        accessKeyId: env.S3_ACCESS_KEY_ID,
+        secretAccessKey: env.S3_SECRET_ACCESS_KEY,
+      }
+    : undefined;
+
+/** `…/storage/v1/s3` → `…/storage/v1/object/public/<bucket>/<file>`. */
+const publicUrl = (filename: string, prefix?: string): string => {
+  if (!s3) return "";
+  const base = s3.endpoint.replace(/\/s3\/?$/, "");
+  const key = [prefix, filename]
+    .filter((part): part is string => Boolean(part))
+    .map((part) => encodeURIComponent(part))
+    .join("/");
+  return `${base}/object/public/${s3.bucket}/${key}`;
+};
+
+const storage = s3Storage({
+  enabled: Boolean(s3),
+  alwaysInsertFields: true,
+  collections: {
+    media: {
+      disablePayloadAccessControl: true,
+      generateFileURL: ({ filename, prefix }) => publicUrl(filename, prefix),
+    },
+  },
+  bucket: s3?.bucket ?? "",
+  config: {
+    endpoint: s3?.endpoint,
+    region: s3?.region,
+    forcePathStyle: true,
+    credentials: { accessKeyId: s3?.accessKeyId ?? "", secretAccessKey: s3?.secretAccessKey ?? "" },
+  },
+});
+
+export default buildConfig({
+  admin: {
+    user: Users.slug,
+    importMap: { baseDir: path.resolve(dirname) },
+    meta: {
+      titleSuffix: ` — ${siteConfig.name} Content`,
+      icons: [{ rel: "icon", type: "image/png", url: "/favicon-32x32.png" }],
+    },
+    // The site's own look — light only, its palette in `(payload)/custom.css`.
+    theme: "light",
+    components: {
+      // [admin kit] the site's marks on the login card and in the nav.
+      graphics: {
+        Logo: "/cms/admin/graphics#Logo",
+        Icon: "/cms/admin/graphics#Icon",
+      },
+      beforeDashboard: [
+        "/cms/admin/welcome#Welcome", // [admin kit]
+        "/cms/admin/analytics-card#AnalyticsCard", // [analytics kit]
+      ],
+      afterNavLinks: [
+        "/cms/admin/analytics-nav#AnalyticsNavLink", // [analytics kit]
+        "/cms/admin/guide-nav#GuideNavLink", // [guide kit]
+      ],
+      views: {
+        analytics: { Component: "/cms/admin/analytics-view#AnalyticsView", path: "/analytics" }, // [analytics kit]
+        guide: { Component: "/cms/admin/guide-view#GuideView", path: "/guide" }, // [guide kit]
+      },
+    },
+  },
+  i18n: { supportedLanguages: { en }, fallbackLanguage: "en" },
+  collections: [Users, Media, PageViews], // PageViews: [analytics kit]
+  globals,
+  // The designed share card into Media, as the SEO defaults' image — once.
+  onInit: seedShareImage,
+  editor: lexicalEditor(),
+  secret: env.PAYLOAD_SECRET ?? "",
+  typescript: { outputFile: path.resolve(dirname, "payload-types.ts") },
+  db: postgresAdapter({
+    pool: { connectionString: env.DATABASE_URL ?? "" },
+    push: false,
+    migrationDir: path.resolve(dirname, "migrations"),
+  }),
+  // Attached to nothing — registered for the admin strings its fields use; the
+  // fields themselves are placed by hand in the SEO global (`cms/seo.ts`).
+  plugins: [
+    seoPlugin({ collections: [], globals: [], uploadsCollection: "media" }),
+    storage,
+  ],
+  sharp,
+});

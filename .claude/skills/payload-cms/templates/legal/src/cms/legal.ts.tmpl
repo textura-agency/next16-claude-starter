@@ -1,0 +1,216 @@
+// ⚠️ ADAPT, DO NOT COPY BLIND — written against a project whose legal mocks were
+// `LegalDocument { sections: { title, short, anchor, summary, blocks: LegalBlock[] } }`
+// with block kinds paragraph / list / table / preferences. Map `toRichText` and
+// `fromLegal` onto THIS project's legal mock shape (the starter ships
+// `{ heading, body: string[] }` sections — paragraphs only). Playbook:
+// `.claude/skills/payload-cms/references/legal-rich-text.md`.
+// 📖 Docs: obsidian/backend/cms-payload.md
+/**
+ * The legal pages in the admin — and back.
+ *
+ * Unlike a board, a document has no layout to protect: its sections are the
+ * content, so the editor adds, drops and reorders them. Each section's text is
+ * one rich-text field — bold, italic, links, lists and sub-headings
+ * typed in place, with the table and the cookie settings button as blocks
+ * dropped into the text. A section's `anchor` is the `id` the contents rail
+ * links to (written from the title when left blank).
+ *
+ * `fromLegal` maps a saved document onto the `LegalPage` the site renders,
+ * falling back to the code's copy field by field, and wholesale when nothing
+ * was saved yet.
+ */
+import type { Block, Field } from "payload";
+import {
+  BlocksFeature,
+  BoldFeature,
+  FixedToolbarFeature,
+  HeadingFeature,
+  InlineToolbarFeature,
+  ItalicFeature,
+  LinkFeature,
+  OrderedListFeature,
+  ParagraphFeature,
+  StrikethroughFeature,
+  UnderlineFeature,
+  UnorderedListFeature,
+  lexicalEditor,
+} from "@payloadcms/richtext-lexical";
+
+import type { LegalDocument } from "@/data/mocks/legal";
+
+import {
+  LEGAL_RICH_BLOCKS,
+  asRichText,
+  toLegalPage,
+  toRichText,
+  type LegalPage,
+  type LegalPageSection,
+} from "./legal-rich-text";
+
+type Plain = Record<string, unknown>;
+
+const isRecord = (value: unknown): value is Plain =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const text = (value: unknown): string | undefined =>
+  typeof value === "string" && value.trim() !== "" ? value : undefined;
+
+const rows = (value: unknown): Plain[] => (Array.isArray(value) ? value.filter(isRecord) : []);
+
+const stringList = (name: string, label: string): Field => ({
+  name,
+  type: "array",
+  label,
+  labels: { singular: "Line", plural: "Lines" },
+  admin: { components: { RowLabel: "/cms/admin/row-label#RowLabel" } },
+  fields: [{ name: "text", type: "textarea", label: "Text", required: true }],
+});
+
+/** What can sit in the text besides words: the two things a paragraph cannot hold. */
+const BLOCKS: Block[] = [
+  {
+    slug: LEGAL_RICH_BLOCKS.table,
+    labels: { singular: "Table", plural: "Tables" },
+    fields: [
+      { name: "caption", type: "text", label: "Caption (screen readers)", required: true },
+      stringList("columns", "Column headings"),
+      {
+        name: "rows",
+        type: "array",
+        label: "Table rows",
+        labels: { singular: "Line", plural: "Lines" },
+        fields: [stringList("cells", "Cells — in column order")],
+      },
+    ],
+  },
+  {
+    slug: LEGAL_RICH_BLOCKS.preferences,
+    labels: { singular: "Cookie settings button", plural: "Cookie settings buttons" },
+    fields: [{ name: "label", type: "text", label: "Button text", required: true }],
+  },
+];
+
+/**
+ * The section editor: what a policy needs and nothing that would break the
+ * page — no uploads, no h1/h2 (the page and the section own those), links to
+ * addresses only (`https://…`, `mailto:…`, `/path`).
+ */
+const bodyEditor = lexicalEditor({
+  features: () => [
+    ParagraphFeature(),
+    BoldFeature(),
+    ItalicFeature(),
+    UnderlineFeature(),
+    StrikethroughFeature(),
+    LinkFeature({ enabledCollections: [] }),
+    UnorderedListFeature(),
+    OrderedListFeature(),
+    HeadingFeature({ enabledHeadingSizes: ["h3"] }),
+    BlocksFeature({ blocks: BLOCKS }),
+    FixedToolbarFeature(),
+    InlineToolbarFeature(),
+  ],
+});
+
+/** The admin's fields for one document, with the code's copy as defaults. */
+export const legalFields = (doc: LegalDocument): Field[] => [
+  {
+    name: "eyebrow",
+    type: "group",
+    label: "Eyebrow (pill above the headline)",
+    fields: [
+      { name: "label", type: "text", label: "Text", defaultValue: doc.eyebrow.label },
+      { name: "accent", type: "text", label: "Accent (blue part)", defaultValue: doc.eyebrow.accent },
+    ],
+  },
+  {
+    type: "row",
+    fields: [
+      { name: "lead", type: "text", label: "Headline — first part", defaultValue: doc.lead },
+      { name: "accent", type: "text", label: "Headline — blue part", defaultValue: doc.accent },
+    ],
+  },
+  {
+    name: "description",
+    type: "textarea",
+    label: "Intro (also the meta description)",
+    defaultValue: doc.description,
+  },
+  {
+    type: "row",
+    fields: [
+      { name: "effective", type: "text", label: "Effective (YYYY-MM-DD)", defaultValue: doc.effective },
+      { name: "updated", type: "text", label: "Updated (YYYY-MM-DD)", defaultValue: doc.updated },
+    ],
+  },
+  {
+    name: "sections",
+    type: "array",
+    label: "Sections",
+    labels: { singular: "Section", plural: "Sections" },
+    admin: { initCollapsed: true, components: { RowLabel: "/cms/admin/row-label#RowLabel" } },
+    defaultValue: doc.sections.map((section, index) => ({
+      anchor: section.id,
+      title: section.title,
+      label: section.label,
+      summary: section.summary,
+      body: toRichText(section.blocks, index + 1),
+    })),
+    fields: [
+      { name: "title", type: "text", label: "Section heading", required: true },
+      {
+        type: "row",
+        fields: [
+          { name: "label", type: "text", label: "Short name (table of contents)" },
+          { name: "anchor", type: "text", label: "Anchor (#…) — blank: from the heading" },
+        ],
+      },
+      { name: "summary", type: "textarea", label: "One sentence for the table of contents" },
+      { name: "body", type: "richText", label: "Text", editor: bodyEditor },
+    ],
+  },
+];
+
+const slugify = (value: string): string =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+
+/** A saved document over the code's one. Nothing saved → the code's copy. */
+export const fromLegal = (doc: LegalDocument, data: unknown): LegalPage => {
+  const base = toLegalPage(doc);
+  if (!isRecord(data)) return base;
+  const eyebrow = isRecord(data.eyebrow) ? data.eyebrow : {};
+  const saved = rows(data.sections);
+  const used = new Set<string>();
+  const sections: LegalPageSection[] = saved.flatMap((row) => {
+    const title = text(row.title);
+    if (!title) return [];
+    let id = text(row.anchor) ?? slugify(title);
+    while (used.has(id)) id = `${id}-2`;
+    used.add(id);
+    return [
+      {
+        id,
+        title,
+        label: text(row.label) ?? title,
+        summary: text(row.summary) ?? "",
+        body: asRichText(row.body) ?? toRichText([]),
+      },
+    ];
+  });
+  return {
+    ...base,
+    eyebrow: {
+      label: text(eyebrow.label) ?? base.eyebrow.label,
+      accent: text(eyebrow.accent) ?? base.eyebrow.accent,
+    },
+    lead: text(data.lead) ?? base.lead,
+    accent: text(data.accent) ?? base.accent,
+    description: text(data.description) ?? base.description,
+    effective: text(data.effective) ?? base.effective,
+    updated: text(data.updated) ?? base.updated,
+    sections: sections.length > 0 ? sections : base.sections,
+  };
+};

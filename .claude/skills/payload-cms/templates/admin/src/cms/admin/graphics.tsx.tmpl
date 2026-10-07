@@ -1,0 +1,34 @@
+// 📖 Docs: obsidian/backend/cms-payload.md → The admin's look
+/**
+ * The admin's brand marks — Payload's own logo swapped for the site's.
+ *
+ * `Logo` is the login screen's: the site's wordmark, filled with the accent
+ * (`currentColor`, set in `custom.css`). Reuse the SVG path the site's header
+ * draws — export it from the component once, import it here — rather than a
+ * second copy that drifts. `Icon` is the small mark in the nav and
+ * breadcrumbs: the site's favicon.
+ */
+import { siteConfig } from "@/lib/site";
+
+// TODO: the site's wordmark, e.g.
+// import { WORDMARK_PATH, WORDMARK_VIEWBOX } from "@/components/common/wordmark-path";
+const WORDMARK_VIEWBOX = "0 0 120 24";
+const WORDMARK_PATH = "";
+
+export const Logo = () => (
+  <span className="cms-logo">
+    {WORDMARK_PATH ? (
+      <svg viewBox={WORDMARK_VIEWBOX} role="img" aria-label={siteConfig.name}>
+        <path d={WORDMARK_PATH} fill="currentColor" />
+      </svg>
+    ) : (
+      <span className="cms-logo__name">{siteConfig.name}</span>
+    )}
+    <span className="cms-logo__tag">Content</span>
+  </span>
+);
+
+export const Icon = () => (
+  // eslint-disable-next-line @next/next/no-img-element -- the admin's nav mark: a 32px favicon, nothing for next/image to optimise
+  <img className="cms-icon" src="/favicon-32x32.png" alt={siteConfig.name} width={18} height={18} />
+);

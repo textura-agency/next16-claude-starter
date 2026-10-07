@@ -1,6 +1,6 @@
 ---
 tags: [workflow, ai, stable]
-updated: 2026-10-06
+updated: 2026-10-07
 ---
 
 # AI Agent Guide
@@ -97,7 +97,7 @@ consistent with it.
 | Something looks wrong on a phone / iOS? | [[mobile-device-qa]] |
 | How do I check my work? | [[qa-verification]] |
 | A Figma design needs building | [[figma-to-code]] |
-| Content needs to be editable | [[cms-payload]] |
+| Content needs to be editable / an admin panel | [[cms-admin]] (flow) · [[cms-payload]] |
 | The project needs a database | [[database-supabase]] |
 | SEO / AI visibility | [[seo-aeo]] |
 | Is it ready to launch? | [[ship]] |
@@ -121,14 +121,15 @@ this vault** so the routing is discoverable to any agent or human reading the do
 **Commands** — `/new-page` · `/section` · `/qa` · `/ship` · `/cms` · `/db` ·
 `/seo` · `/migrate-site` · `/perf` · `/load` · `/mobile`
 
-**Skills** — `qa-verify`, `figma-to-section`, `payload-cms`, `supabase-db`,
+**Skills** — `qa-verify`, `figma-to-section`, `payload-cms`, `payload-admin`,
+`payload-analytics`, `supabase-db`,
 `supabase-auth`, `seo-audit`, `schema-markup`, `aeo-visibility`, `site-migration`,
 `ship-check`, `optimize-load`, `optimize-performance`, `optimize-3d-scene`,
 `mobile-device-qa`
 
 **Tools** — `tools/qa/` (`yarn qa:*`): Lighthouse, the scroll test, the iOS /
 fps / context-loss / WebKit probes, the axe sweep, resize and motion checks, the
-brand kit — [[testing-pipeline]].
+brand kit, the admin-guide shots — [[testing-pipeline]].
 
 **Agents** — `section-builder`, `motion-reviewer`, `vault-librarian`, `seo-auditor`
 

@@ -1,0 +1,31 @@
+// 📖 Docs: obsidian/backend/cms-payload.md → The guide
+/**
+ * `/admin/guide` — the editor's guide: which entry edits which screen, with the
+ * screen beside it, then SEO and Analytics explained. A custom admin
+ * view inside Payload's own template, like Analytics, so the nav and the header
+ * stay. The page itself is `guide-body.tsx`.
+ */
+import type { AdminViewServerProps } from "payload";
+import { DefaultTemplate } from "@payloadcms/next/templates";
+import { redirect } from "next/navigation";
+
+import { GuideBody } from "./guide-body";
+
+export const GuideView = async ({ initPageResult, params, searchParams }: AdminViewServerProps) => {
+  const { req, permissions, visibleEntities, locale } = initPageResult;
+  if (!req.user) redirect("/admin/login");
+  return (
+    <DefaultTemplate
+      i18n={req.i18n}
+      locale={locale}
+      params={params}
+      payload={req.payload}
+      permissions={permissions}
+      searchParams={searchParams}
+      user={req.user}
+      visibleEntities={visibleEntities}
+    >
+      <GuideBody />
+    </DefaultTemplate>
+  );
+};

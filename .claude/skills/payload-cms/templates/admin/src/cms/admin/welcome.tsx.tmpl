@@ -1,0 +1,35 @@
+// 📖 Docs: obsidian/backend/cms-payload.md → The admin's look
+/**
+ * The dashboard's opening card: what this admin is for, in one breath, the way
+ * back to the site and the way to the guide. Rendered above Payload's own list
+ * of globals. Say plainly what is editable and what stays in code — an editor
+ * who knows the limits stops looking for the layout switch.
+ */
+import Link from "next/link";
+
+import { siteConfig } from "@/lib/site";
+
+export const Welcome = () => (
+  <section className="cms-welcome" aria-labelledby="cms-welcome-title">
+    <p className="cms-welcome__eyebrow">
+      {siteConfig.name} <span>Content</span>
+    </p>
+    <h2 id="cms-welcome-title" className="cms-welcome__title">
+      Every word on the site, <span>in one place</span>
+    </h2>
+    <p className="cms-welcome__copy">
+      Each card below is one screen of the site, in the order a visitor scrolls it. Edit the
+      text and press Save — the site shows it straight away. Layout and animation stay in
+      code.
+    </p>
+    <div className="cms-welcome__links">
+      <a className="cms-welcome__link" href="/" target="_blank" rel="noreferrer">
+        Open the site ↗
+      </a>
+      {/* [guide kit] — drop this link if the guide is not installed. */}
+      <Link className="cms-welcome__link cms-welcome__link--quiet" href="/admin/guide">
+        Read the guide
+      </Link>
+    </div>
+  </section>
+);

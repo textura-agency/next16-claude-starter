@@ -1,0 +1,91 @@
+// 📖 Docs: obsidian/backend/cms-payload.md → Analytics
+/**
+ * `/admin/analytics` — visitors, page views, time on page and bounce rate,
+ * the day-by-day, and where people land, come from, and read on. A custom admin view inside Payload's own template, so the nav and
+ * the header stay.
+ */
+import type { AdminViewServerProps } from "payload";
+import { DefaultTemplate } from "@payloadcms/next/templates";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+
+import { readStats } from "@/cms/analytics";
+
+import { AnalyticsChart } from "./analytics-chart";
+import { Kpis, RankList, countryLabel, languageLabel } from "./analytics-ui";
+
+const RANGES = [7, 30, 90] as const;
+
+const capitalise = (value: string): string => value.charAt(0).toUpperCase() + value.slice(1);
+
+export const AnalyticsView = async ({ initPageResult, params, searchParams }: AdminViewServerProps) => {
+  const { req, permissions, visibleEntities, locale } = initPageResult;
+  if (!req.user) redirect("/admin/login");
+
+  const asked = Number(searchParams?.range);
+  const days = RANGES.find((range) => range === asked) ?? 30;
+  const stats = await readStats(days);
+
+  return (
+    <DefaultTemplate
+      i18n={req.i18n}
+      locale={locale}
+      params={params}
+      payload={req.payload}
+      permissions={permissions}
+      searchParams={searchParams}
+      user={req.user}
+      visibleEntities={visibleEntities}
+    >
+      <div className="ca gutter--left gutter--right">
+        <header className="ca-head">
+          <div>
+            <h1 className="ca-head__title">Analytics</h1>
+            <p className="ca-head__copy">
+              Visitors who allowed analytics in the cookie banner. No cookies of our own and no IP
+              addresses are stored; a visitor is counted once per day.
+            </p>
+          </div>
+          <nav className="ca-range" aria-label="Period">
+            {RANGES.map((range) => (
+              <Link
+                key={range}
+                href={`/admin/analytics?range=${range}`}
+                className={range === days ? "is-active" : undefined}
+                aria-current={range === days ? "page" : undefined}
+              >
+                {range} days
+              </Link>
+            ))}
+          </nav>
+        </header>
+
+        <Kpis stats={stats} />
+        <AnalyticsChart daily={stats.daily} />
+
+        <div className="ca-grid ca-grid--wide">
+          <RankList title="Top pages" items={stats.pages} empty="No views yet." showTime />
+          <RankList title="Where they came from" items={stats.referrers} empty="No visits yet." />
+        </div>
+        <div className="ca-grid">
+          <RankList
+            title="Countries"
+            items={stats.countries}
+            empty="No visits yet."
+            label={countryLabel}
+            badge={(code) => code}
+            note={
+              stats.countriesApprox
+                ? "Some countries are estimated from the browser language — exact once the site runs on Vercel."
+                : undefined
+            }
+          />
+          <RankList title="Languages" items={stats.languages} empty="No visits yet." label={languageLabel} />
+          <RankList title="Devices" items={stats.devices} empty="No visits yet." label={capitalise} />
+          <RankList title="Browsers" items={stats.browsers} empty="No visits yet." />
+          <RankList title="Operating systems" items={stats.systems} empty="No visits yet." />
+        </div>
+      </div>
+    </DefaultTemplate>
+  );
+};

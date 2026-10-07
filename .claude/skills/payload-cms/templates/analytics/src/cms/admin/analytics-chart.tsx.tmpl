@@ -1,0 +1,148 @@
+"use client";
+// 📖 Docs: obsidian/backend/cms-payload.md → Analytics
+/**
+ * The analytics view's day-by-day chart: visitors, page views or
+ * average time on page, picked with a switch; a line over a soft area, a
+ * labelled y-axis, and a readout for the day under the pointer.
+ *
+ * Plain SVG, no chart library. The hover is a discrete state change — a dot
+ * and a readout appear — so nothing here animates.
+ */
+import { useState } from "react";
+
+import type { DayPoint } from "@/cms/analytics";
+
+import { duration } from "./format";
+
+type Metric = "visitors" | "views" | "seconds";
+
+const METRICS: { key: Metric; label: string }[] = [
+  { key: "visitors", label: "Visitors" },
+  { key: "views", label: "Page views" },
+  { key: "seconds", label: "Avg. time on page" },
+];
+
+const W = 1000;
+const H = 260;
+const PAD = { top: 16, right: 16, bottom: 28, left: 48 };
+
+const valueText = (metric: Metric, value: number): string =>
+  metric === "seconds" ? duration(value) : new Intl.NumberFormat("en-US").format(value);
+
+/** A round step for the y-axis: 1, 2 or 5 × a power of ten. */
+const niceMax = (value: number): number => {
+  if (value <= 0) return 4;
+  const power = 10 ** Math.floor(Math.log10(value));
+  const step = [1, 2, 5, 10].find((m) => m * power >= value / 4) ?? 10;
+  return Math.ceil(value / (step * power)) * step * power;
+};
+
+const dayLabel = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+
+export const AnalyticsChart = ({ daily }: { daily: DayPoint[] }) => {
+  const [metric, setMetric] = useState<Metric>("visitors");
+  const [hover, setHover] = useState<number | null>(null);
+
+  const values = daily.map((day) => day[metric]);
+  const max = niceMax(Math.max(0, ...values));
+  const innerW = W - PAD.left - PAD.right;
+  const innerH = H - PAD.top - PAD.bottom;
+  const x = (i: number) => PAD.left + (daily.length <= 1 ? innerW / 2 : (i / (daily.length - 1)) * innerW);
+  const y = (v: number) => PAD.top + innerH - (v / max) * innerH;
+
+  const line = values.map((v, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  const area = `${line} L${x(values.length - 1).toFixed(1)},${y(0)} L${x(0).toFixed(1)},${y(0)} Z`;
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map((t) => t * max);
+  const every = Math.max(1, Math.ceil(daily.length / 8));
+  const point = hover === null ? null : daily[hover];
+
+  return (
+    <section className="ca-chart">
+      <div className="ca-chart__head">
+        <div className="ca-switch" role="tablist" aria-label="Chart metric">
+          {METRICS.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              role="tab"
+              aria-selected={metric === item.key}
+              className={metric === item.key ? "is-active" : undefined}
+              onClick={() => setMetric(item.key)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+        <p className="ca-chart__readout" aria-live="polite">
+          {point ? (
+            <>
+              <strong>{valueText(metric, point[metric])}</strong>{" "}
+              <span>{dayLabel.format(new Date(point.day))}</span>
+            </>
+          ) : (
+            <span>Hover the chart for a day&apos;s figure</span>
+          )}
+        </p>
+      </div>
+
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="ca-chart__svg"
+        role="img"
+        aria-label={`${METRICS.find((m) => m.key === metric)?.label} per day`}
+        onMouseLeave={() => setHover(null)}
+      >
+        <defs>
+          <linearGradient id="ca-area" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" className="ca-chart__stop" stopOpacity="0.22" />
+            <stop offset="100%" className="ca-chart__stop" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+
+        {ticks.map((tick) => (
+          <g key={tick}>
+            <line x1={PAD.left} x2={W - PAD.right} y1={y(tick)} y2={y(tick)} className="ca-chart__grid" />
+            <text x={PAD.left - 10} y={y(tick)} className="ca-chart__tick" textAnchor="end" dominantBaseline="middle">
+              {metric === "seconds" ? duration(tick) : Math.round(tick)}
+            </text>
+          </g>
+        ))}
+
+        {daily.map((day, i) =>
+          // Every `every`-th day, and the last — unless it would sit on the one before.
+          (i % every === 0 && daily.length - 1 - i >= every / 2) || i === daily.length - 1 ? (
+            <text key={day.day} x={x(i)} y={H - 8} className="ca-chart__tick" textAnchor="middle">
+              {dayLabel.format(new Date(day.day))}
+            </text>
+          ) : null,
+        )}
+
+        <path d={area} fill="url(#ca-area)" />
+        <path d={line} className="ca-chart__line" />
+
+        {hover !== null ? (
+          <g>
+            <line x1={x(hover)} x2={x(hover)} y1={PAD.top} y2={y(0)} className="ca-chart__cursor" />
+            <circle cx={x(hover)} cy={y(values[hover])} r={5} className="ca-chart__dot" />
+          </g>
+        ) : null}
+
+        {/* One invisible column per day catches the pointer. */}
+        {daily.map((day, i) => {
+          const half = daily.length <= 1 ? innerW / 2 : innerW / (daily.length - 1) / 2;
+          return (
+            <rect
+              key={`hit-${day.day}`}
+              x={x(i) - half}
+              y={PAD.top}
+              width={half * 2}
+              height={innerH}
+              fill="transparent"
+              onMouseEnter={() => setHover(i)}
+            />
+          );
+        })}
+      </svg>
+    </section>
+  );
+};

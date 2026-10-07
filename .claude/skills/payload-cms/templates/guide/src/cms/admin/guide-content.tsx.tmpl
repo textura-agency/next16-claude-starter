@@ -1,0 +1,181 @@
+// 📖 Docs: obsidian/backend/cms-payload.md → The guide
+/**
+ * The editor's guide, as content: which admin entry edits which screen of the
+ * site, what each field is, and what SEO and Analytics show.
+ *
+ * Plain data rendered by a server component, with no client code — the page is
+ * read, not interacted with. The screenshots are the site's own screens, shot
+ * at 1440 × 900 and kept in `public/admin-guide/`; re-shoot them when a screen
+ * changes, the guide shows whatever is there.
+ *
+ * Kept apart from `guide-view.tsx` so the content can be rendered without
+ * Payload's template (a check, a preview) and the view stays a frame.
+ */
+
+/** One admin entry — a global, a tab, a collection — and what it edits. */
+interface Entry {
+  /** The sidebar path, e.g. "Home page → 1 · Hero". */
+  where: string;
+  /** What the editor sees on the site. */
+  title: string;
+  /** The screenshot's basename in `public/admin-guide/`. */
+  shot?: string;
+  /** What this entry edits, one field or group per line. */
+  fields: string[];
+  /** Things worth knowing before pressing Save. */
+  notes?: string[];
+}
+
+interface Chapter {
+  id: string;
+  title: string;
+  lead: string;
+  entries: Entry[];
+}
+
+/** A short, screen-free list — the general rules and the settings. */
+interface Plain {
+  id: string;
+  title: string;
+  lead?: string;
+  points: string[];
+}
+
+const HEADLINE = "Headline in two parts: the dark words and the highlighted words";
+const EYEBROW = "Eyebrow (the small line above the headline)";
+
+/**
+ * PROJECT CONFIG — the general rules. Keep what is true of this admin, cut the
+ * rest; each point answers a question an editor would otherwise ask.
+ */
+export const INTRO: Plain = {
+  id: "basics",
+  title: "How this admin works",
+  points: [
+    "The sidebar mirrors the site. Home page lists the screens of the home page in the order a visitor scrolls them. Site holds what every page shares: the header, the footer, the forms and the cookie banner. Pages & documents holds the 404 screen and the legal pages.",
+    "Open an entry, change the text, press Save. The site picks up the change straight away, so a refresh of the site shows it. There is no publish step and no draft.",
+    "A blank field is safe. Clear a field and the site falls back to its built-in copy for that spot, so nothing goes missing. Removing an item from a list does remove it from the site.",
+    "What stays in code: the layout, the animation, and where links point. Photos are replaced through their “Replace photo” field; every image needs a short description for screen readers.",
+    "Each entry saves on its own. There is no version history, so to undo a change retype the previous text. Keep the site open in another tab and refresh it to check what you saved.",
+  ],
+};
+
+/**
+ * PROJECT CONFIG — one entry per sidebar item, in sidebar order. `where` is
+ * the sidebar path, `shot` the screenshot's basename in `public/admin-guide/`
+ * (`yarn qa:shots`), `fields` what the editor changes in the screen's own
+ * words, `notes` the rules that matter before pressing Save: a count the
+ * layout depends on, a link that is set in code, a placeholder like `{name}`.
+ */
+export const CHAPTERS: Chapter[] = [
+  {
+    id: "home",
+    title: "Home page",
+    lead: "The home page's screens, in scroll order. The number in the sidebar is the screen's position on the page.",
+    entries: [
+      {
+        where: "Home page → 1 · Hero",
+        title: "The first screen",
+        shot: "hero",
+        fields: [EYEBROW, HEADLINE, "Description", "Primary button text"],
+        notes: ["Where the button goes is set in code."],
+      },
+      // TODO: one entry per TEXT_GLOBALS item.
+    ],
+  },
+  {
+    id: "site",
+    title: "Site",
+    lead: "What every page shares.",
+    entries: [
+      {
+        where: "Site → Header & menu",
+        title: "The menu and the header button",
+        shot: "header",
+        fields: ["Menu item labels", "The header button's text"],
+        notes: ["Where each item points is set in code."],
+      },
+      {
+        where: "Site → Footer",
+        title: "Contacts, link columns, copyright",
+        shot: "footer",
+        fields: ["Contact lines", "Link column headings and labels", "Copyright line"],
+      },
+    ],
+  },
+  {
+    id: "documents",
+    title: "Pages & documents",
+    lead: "Pages outside the home page.",
+    entries: [
+      {
+        where: "Pages & documents → 404 page",
+        title: "The screen for addresses that don't exist",
+        shot: "not-found",
+        fields: [HEADLINE, "Description", "Button text"],
+      },
+    ],
+  },
+];
+
+export const SEO: Chapter = {
+  id: "seo",
+  title: "SEO",
+  lead: "Site → SEO. What search engines and link previews show for each page, one tab per page, with Site defaults first.",
+  entries: [
+    {
+      where: "Site → SEO → Site defaults",
+      title: "Used wherever a page leaves a field blank",
+      fields: [
+        "Site name — shown next to the address in search results and as the publisher in structured data",
+        "Default description — the grey text under a result, for a page with none of its own",
+        "Default share image — the card a chat or a social post shows for a link (1200 × 630). Blank: the designed card in code",
+        "Author / publisher and locale — read by search engines, rarely changed",
+        "X / Twitter handle — credited on cards shared there; blank leaves it out",
+        "Organisation logo and social profiles — go into the structured data search engines read about the company",
+      ],
+    },
+    {
+      where: "Site → SEO → Home · Privacy Policy · 404 page",
+      title: "One tab per page",
+      fields: [
+        "Title — the blue link line in a search result and the tab's name in the browser. Keep it 50–60 characters; the bar under the field shows the length. Every title opens on the brand name",
+        "Description — the grey text under the result, 100–150 characters",
+        "Share image — this page's own card, if it should differ from the site default",
+        "Canonical address — the page's own address; leave it unless the page moves",
+        "Hide from search engines — takes the page out of Google and out of the sitemap. The 404 page is hidden by design",
+        "The preview at the bottom shows the search snippet and the link card exactly as they will draw, fallbacks applied",
+      ],
+      notes: [
+        "Search engines re-read a page on their own schedule, so a changed title shows in Google days later; a link card in a chat picks up the change the next time the link is pasted.",
+      ],
+    },
+  ],
+};
+
+export const ANALYTICS: Plain = {
+  id: "analytics",
+  title: "Analytics",
+  lead: "Insights → Analytics, and the 7-day card on the dashboard. Visitors who allowed analytics in the cookie banner; nothing personal is stored.",
+  points: [
+    "Period — 7, 30 or 90 days. Every number is compared with the period before it: the small arrow is the change.",
+    "Visitors — people, counted once per day. The same person on two days is two visitors.",
+    "Page views — pages opened. One visitor reading three pages is three views.",
+    "Avg. time on page — how long a page was actually on screen, averaged over all views. Time in a hidden tab does not count; a single view is capped at 30 minutes.",
+    "Bounce rate — the share of visitors who left after one page.",
+    "On the site now — visitors active in the last 30 minutes.",
+    "The chart — the day-by-day line; switch it between visitors, views and average time, and hover a day for its numbers.",
+    "Top pages — the most-read pages with their average time. Where they came from — the sites that linked here; “direct” is a typed or bookmarked address.",
+    "Countries, languages, devices, browsers, operating systems — who the visitors are. A country is read from the visitor's connection; where that is unavailable it is estimated from the browser language, and the panel says so.",
+    "Privacy — no cookie of our own, no IP address stored. A visitor is a one-day hash that cannot be followed across days. Views are deleted after 14 months, the figure the privacy policy gives.",
+  ],
+};
+
+export const SETTINGS: Plain = {
+  id: "settings",
+  title: "Settings",
+  points: [
+    "Users — who can sign in to this admin. Add a colleague with their email; they set a password from the invitation.",
+    "Media — every uploaded photo, logo and share image. Upload once, pick it from any image field. The description (alt) is required: screen readers read it, and search engines index it.",
+  ],
+};

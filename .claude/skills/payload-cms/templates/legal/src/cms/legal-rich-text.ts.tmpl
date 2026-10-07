@@ -1,0 +1,143 @@
+// ⚠️ ADAPT, DO NOT COPY BLIND — written against a project whose legal mocks were
+// `LegalDocument { sections: { title, short, anchor, summary, blocks: LegalBlock[] } }`
+// with block kinds paragraph / list / table / preferences. Map `toRichText` and
+// `fromLegal` onto THIS project's legal mock shape (the starter ships
+// `{ heading, body: string[] }` sections — paragraphs only). Playbook:
+// `.claude/skills/payload-cms/references/legal-rich-text.md`.
+// 📖 Docs: obsidian/backend/cms-payload.md
+/**
+ * A legal section's text as rich text — the shape the admin edits and the site
+ * renders.
+ *
+ * The code's copy stays written as `LegalBlock`s in `data/mocks/legal.ts`, the
+ * readable form; `toRichText` turns them into the Lexical state the editor
+ * stores, so the admin's defaults and the site's fallback are the same text.
+ * A list item written `Lead — rest` becomes a bold lead and the rest; a
+ * paragraph's closing link becomes a link inside it; a table and the cookie
+ * settings button become blocks.
+ *
+ * Pure data — no Payload runtime — so the views can import the types.
+ */
+import type { SerializedEditorState, SerializedLexicalNode } from "@payloadcms/richtext-lexical/lexical";
+
+import type { LegalBlock, LegalDocument, LegalSection } from "@/data/mocks/legal";
+
+export type LegalBody = SerializedEditorState;
+
+export interface LegalPageSection extends Omit<LegalSection, "blocks"> {
+  body: LegalBody;
+}
+
+/** A legal document as the site renders it: each section's text is rich text. */
+export interface LegalPage extends Omit<LegalDocument, "sections"> {
+  sections: readonly LegalPageSection[];
+}
+
+/** The slugs of the blocks an editor can drop into the text. */
+export const LEGAL_RICH_BLOCKS = { table: "table", preferences: "preferences" } as const;
+
+/** `format` bit Lexical sets on bold text. */
+const BOLD = 1;
+
+/** `Lead — rest`: the lead is set bold, the rest stays as it is. */
+const LEAD_SEPARATOR = " — ";
+
+type Node = SerializedLexicalNode & Record<string, unknown>;
+
+const text = (value: string, format = 0): Node => ({
+  type: "text",
+  version: 1,
+  text: value,
+  format,
+  detail: 0,
+  mode: "normal",
+  style: "",
+});
+
+const element = (type: string, children: Node[], extra: Record<string, unknown> = {}): Node => ({
+  type,
+  version: 1,
+  children,
+  direction: "ltr",
+  format: "",
+  indent: 0,
+  ...extra,
+});
+
+const paragraph = (children: Node[]): Node =>
+  element("paragraph", children, { textFormat: 0, textStyle: "" });
+
+const link = (label: string, href: string): Node =>
+  element("link", [text(label)], {
+    version: 3,
+    fields: { linkType: "custom", url: href, newTab: false },
+  });
+
+/** Block ids only need to be unique within the document; these are stable across builds. */
+const blockId = (seed: number): string => seed.toString(16).padStart(24, "0");
+
+const block = (seed: number, fields: Record<string, unknown>): Node => ({
+  type: "block",
+  version: 2,
+  format: "",
+  fields: { id: blockId(seed), blockName: "", ...fields },
+});
+
+const leadAndRest = (item: string): Node[] => {
+  const at = item.indexOf(LEAD_SEPARATOR);
+  return at > 0 ? [text(item.slice(0, at), BOLD), text(item.slice(at))] : [text(item)];
+};
+
+const toNode = (entry: LegalBlock, seed: number): Node => {
+  switch (entry.kind) {
+    case "paragraph":
+      return paragraph(
+        entry.link ? [text(`${entry.text} `), link(entry.link.label, entry.link.href)] : [text(entry.text)],
+      );
+    case "list":
+      return element(
+        "list",
+        entry.items.map((item, index) => element("listitem", leadAndRest(item), { value: index + 1 })),
+        { listType: "bullet", start: 1, tag: "ul" },
+      );
+    case "table":
+      return block(seed, {
+        blockType: LEGAL_RICH_BLOCKS.table,
+        caption: entry.caption,
+        columns: entry.columns.map((column) => ({ text: column })),
+        rows: entry.rows.map((row) => ({ cells: row.map((cell) => ({ text: cell })) })),
+      });
+    case "preferences":
+      return block(seed, { blockType: LEGAL_RICH_BLOCKS.preferences, label: entry.label });
+  }
+};
+
+/** The code's blocks as the Lexical state the editor stores. `seed` keeps block ids apart. */
+export const toRichText = (blocks: readonly LegalBlock[], seed = 0): LegalBody => ({
+  root: {
+    type: "root",
+    version: 1,
+    direction: "ltr",
+    format: "",
+    indent: 0,
+    children: blocks.map((entry, index) => toNode(entry, seed * 100 + index + 1)),
+  },
+});
+
+/** The code's whole document, as the site renders it. */
+export const toLegalPage = (doc: LegalDocument): LegalPage => ({
+  ...doc,
+  sections: doc.sections.map(({ blocks, ...section }, index) => ({
+    ...section,
+    body: toRichText(blocks, index + 1),
+  })),
+});
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** A saved field that is a Lexical state with something in it. */
+export const asRichText = (value: unknown): LegalBody | undefined => {
+  if (!isRecord(value) || !isRecord(value.root) || !Array.isArray(value.root.children)) return undefined;
+  return value.root.children.length > 0 ? (value as unknown as LegalBody) : undefined;
+};

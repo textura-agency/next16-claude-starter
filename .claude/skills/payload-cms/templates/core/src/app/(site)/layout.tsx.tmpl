@@ -1,0 +1,19 @@
+import type { Metadata, Viewport } from "next";
+
+import { getSiteMetadata } from "@/cms/content";
+import { SiteDocument } from "@/layouts/site-document";
+import { generateViewport } from "@/utils/seo/generate-page-metadata";
+
+/** The site-wide `<head>` defaults — the admin's SEO global over `siteConfig`. */
+export const generateMetadata = (): Promise<Metadata> => getSiteMetadata();
+export const viewport: Viewport = generateViewport();
+
+/**
+ * The site's root layout — one of two, beside the admin's `(payload)` one.
+ * Keep it static: nothing here (or in any page) may read `headers()` /
+ * `cookies()` — robots are told apart in `src/proxy.ts`. No `app/loading.tsx`
+ * without a real skeleton (obsidian/frontend/robot-form.md).
+ */
+export default function SiteLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  return <SiteDocument>{children}</SiteDocument>;
+}

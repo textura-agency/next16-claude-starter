@@ -1,0 +1,21 @@
+"use client";
+// 📖 Docs: obsidian/backend/cms-payload.md → Analytics
+/** "Analytics" in the admin's nav, under the content groups. */
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+export const AnalyticsNavLink = () => {
+  const active = usePathname()?.startsWith("/admin/analytics") ?? false;
+  return (
+    <div className="ca-nav">
+      <p className="ca-nav__label">Insights</p>
+      <Link
+        href="/admin/analytics"
+        className={`nav__link ca-nav__link${active ? " active" : ""}`}
+        aria-current={active ? "page" : undefined}
+      >
+        Analytics
+      </Link>
+    </div>
+  );
+};

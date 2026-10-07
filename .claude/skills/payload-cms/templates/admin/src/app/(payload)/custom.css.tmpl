@@ -1,0 +1,1078 @@
+/*
+  The admin skin — Payload's light theme re-tinted to the site's palette.
+  Payload's styles sit in a cascade layer, so these unlayered rules win
+  without `!important`. Playbook: the `payload-admin` skill.
+
+  ── FILL THIS BLOCK FIRST ──────────────────────────────────────────────
+  The `--admin-*` values below are the ONLY raw colours in this file. Copy
+  them from the site's Tier 1 (`--raw-*` in `src/app/globals.css`): the
+  page's ground, its ink, its accent, the hairline. Everything else —
+  Payload's whole neutral ramp, its focus/success colours, the analytics,
+  the guide — is mixed from them. They are written here rather than
+  imported: the site's stylesheet carries Tailwind and the page's resets,
+  which must not reach the admin.
+
+  No transitions or animation are added — Payload's own are kept, and the
+  starter's motion rules forbid adding any in a CSS file. Hover is a colour
+  change only.
+
+  The tone is quiet on purpose: one white panel per screen on a pale ground,
+  small muted labels, headings that step down by size rather than by
+  weight, and the accent kept for what can be pressed.
+
+  Payload's class names are NOT a public API. After any Payload upgrade,
+  open /admin (dashboard, a global with arrays and tabs, login, Analytics,
+  Guide) and re-check this file.
+*/
+
+/* The site's font. A url() that doesn't resolve FAILS THE BUILD, so none is
+   shipped: with self-hosted files (src/style/fonts/*.woff2) add one
+   @font-face per weight (400/500/600) here, family "Site Sans"; with
+   next/font/google the admin falls back to the system stack below — or load
+   the same family from the files next/font downloaded. */
+
+:root,
+html[data-theme="light"] {
+  /* ── Tier 1 — the site's values (copy from globals.css `--raw-*`) ── */
+  --admin-surface: #ffffff;          /* cards, nav, inputs' panel */
+  --admin-ground: #f3f6fb;           /* the page behind the cards — a pale tint of the site's ground */
+  --admin-field: #fafcff;            /* input fill, between surface and ground */
+  --admin-line: #e3e9f2;             /* hairlines */
+  --admin-navy: #09173c;             /* headings — the site's darkest ink */
+  --admin-ink: #212e4b;              /* body text */
+  --admin-muted: #6a7c9b;            /* labels, notes — must hold 4.5:1 on --admin-surface */
+  --admin-accent: #015feb;           /* what can be pressed, focus, the chart line */
+  --admin-accent-strong: #0151c2;    /* the accent's hover/pressed step */
+  --admin-accent-deep: #00227b;      /* the gradient's dark end */
+  --admin-good: #138a4a;             /* analytics: a change for the better */
+  --admin-bad: #c2410c;              /* analytics: a change for the worse */
+  --admin-live: #41ee11;             /* analytics: the "on the site now" dot */
+
+  /* ── Derived — leave as is ── */
+  --admin-accent-soft: color-mix(in srgb, var(--admin-accent) 9%, var(--admin-surface));
+  --admin-gradient: linear-gradient(90deg, var(--admin-accent-deep) 0%, var(--admin-accent) 100%);
+  --admin-shadow:
+    0 1px 2px color-mix(in srgb, var(--admin-navy) 4%, transparent),
+    0 12px 32px -20px color-mix(in srgb, var(--admin-navy) 25%, transparent);
+
+  /* Payload's neutral ramp, re-cut from the surface through the ground to
+     the site's navy — every Payload surface, border and ink step follows. */
+  --color-base-0: var(--admin-surface);
+  --color-base-50: color-mix(in oklab, var(--admin-ground) 60%, var(--admin-surface));
+  --color-base-100: var(--admin-ground);
+  --color-base-150: color-mix(in oklab, var(--admin-navy) 7%, var(--admin-ground));
+  --color-base-200: color-mix(in oklab, var(--admin-navy) 12%, var(--admin-ground));
+  --color-base-250: color-mix(in oklab, var(--admin-navy) 18%, var(--admin-ground));
+  --color-base-300: color-mix(in oklab, var(--admin-navy) 25%, var(--admin-ground));
+  --color-base-350: color-mix(in oklab, var(--admin-navy) 32%, var(--admin-ground));
+  --color-base-400: color-mix(in oklab, var(--admin-navy) 39%, var(--admin-ground));
+  --color-base-450: color-mix(in oklab, var(--admin-navy) 46%, var(--admin-ground));
+  --color-base-500: color-mix(in oklab, var(--admin-navy) 53%, var(--admin-ground));
+  --color-base-550: color-mix(in oklab, var(--admin-navy) 60%, var(--admin-ground));
+  --color-base-600: color-mix(in oklab, var(--admin-navy) 66%, var(--admin-ground));
+  --color-base-650: color-mix(in oklab, var(--admin-navy) 72%, var(--admin-ground));
+  --color-base-700: color-mix(in oklab, var(--admin-navy) 78%, var(--admin-ground));
+  --color-base-750: color-mix(in oklab, var(--admin-navy) 83%, var(--admin-ground));
+  --color-base-800: color-mix(in oklab, var(--admin-navy) 88%, var(--admin-ground));
+  --color-base-850: color-mix(in oklab, var(--admin-navy) 92%, var(--admin-ground));
+  --color-base-900: color-mix(in oklab, var(--admin-navy) 95%, var(--admin-ground));
+  --color-base-950: color-mix(in oklab, var(--admin-navy) 98%, var(--admin-ground));
+  --color-base-1000: var(--admin-navy);
+
+  /* "Saved", focus rings and the like ride the site's accent. */
+  --color-success-50: color-mix(in oklab, var(--admin-accent) 5%, var(--admin-surface));
+  --color-success-100: color-mix(in oklab, var(--admin-accent) 11%, var(--admin-surface));
+  --color-success-150: color-mix(in oklab, var(--admin-accent) 22%, var(--admin-surface));
+  --color-success-200: color-mix(in oklab, var(--admin-accent) 34%, var(--admin-surface));
+  --color-success-250: color-mix(in oklab, var(--admin-accent) 46%, var(--admin-surface));
+  --color-success-300: color-mix(in oklab, var(--admin-accent) 56%, var(--admin-surface));
+  --color-success-400: color-mix(in oklab, var(--admin-accent) 78%, var(--admin-surface));
+  --color-success-500: var(--admin-accent);
+  --color-success-600: var(--admin-accent-strong);
+  --color-success-650: color-mix(in oklab, var(--admin-accent-strong) 70%, var(--admin-accent-deep));
+  --color-success-750: color-mix(in oklab, var(--admin-accent-strong) 30%, var(--admin-accent-deep));
+  --color-success-800: var(--admin-accent-deep);
+
+  --font-body: "Site Sans", ui-sans-serif, system-ui, sans-serif;
+  --style-radius-s: 10px;
+  --style-radius-m: 14px;
+  --style-radius-l: 20px;
+  --theme-bg: var(--admin-ground);
+  --theme-input-bg: var(--admin-field);
+  --theme-text: var(--admin-ink);
+  --theme-border-color: var(--admin-line);
+  --accessibility-outline: 0 0 0 2px var(--admin-accent);
+}
+
+body {
+  background: var(--admin-ground);
+  color: var(--admin-ink);
+  font-size: 14px;
+}
+
+/* ── Type: headings step down by size, not weight ──────────────────── */
+h1,
+h2,
+h3,
+h4 {
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--admin-navy);
+}
+.doc-header__title,
+.render-title {
+  font-size: 30px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+.custom-view-description,
+.view-description,
+.doc-header + .view-description {
+  color: var(--admin-muted);
+}
+
+/* ── Nav: a quiet white column ─────────────────────────────────────── */
+.nav {
+  background: var(--admin-surface);
+  border-right: 1px solid var(--admin-line);
+}
+.nav-group__toggle {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--admin-muted);
+}
+.nav__link {
+  border-radius: var(--style-radius-s);
+  color: var(--admin-ink);
+  padding-block: 5px;
+}
+/* Hover is the colour alone — no fill, no underline. The open page is the
+   one in navy at medium weight. */
+.nav__link,
+.nav__link:hover,
+.nav__link:focus-visible {
+  background: none;
+  text-decoration: none;
+}
+.nav__link:hover {
+  color: var(--admin-accent);
+}
+.nav__link.active {
+  color: var(--admin-navy);
+  font-weight: 500;
+}
+.nav__link.active::before,
+.nav__link-indicator {
+  display: none;
+}
+
+/* Settings (users, media) is Payload's first group because collections list
+   before globals; the content an editor came for goes first. */
+.nav__wrap {
+  display: flex;
+  flex-direction: column;
+}
+.nav__wrap > .nav-group:first-child {
+  order: 1;
+}
+.nav__wrap > .nav__controls {
+  order: 2;
+}
+.collections__wrap {
+  display: flex;
+  flex-direction: column;
+}
+.collections__group:first-child {
+  order: 1;
+}
+.collections__label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--admin-muted);
+}
+
+/* ── Buttons: the site's pill CTA ──────────────────────────────────── */
+.btn {
+  border-radius: 999px;
+  font-weight: 500;
+}
+.btn--style-primary {
+  --bg-color: var(--admin-accent);
+  --hover-bg: var(--admin-accent-strong);
+  --color: var(--admin-surface);
+  background-image: var(--admin-gradient);
+  box-shadow: 0 6px 16px -10px color-mix(in srgb, var(--admin-accent) 70%, transparent);
+}
+.btn--style-primary:disabled,
+.btn--style-primary.btn--disabled {
+  background-image: none;
+  box-shadow: none;
+  --bg-color: var(--color-base-150);
+  --color: var(--admin-muted);
+}
+.btn--style-secondary {
+  --bg-color: var(--admin-surface);
+  --color: var(--admin-accent-strong);
+  box-shadow: inset 0 0 0 1px var(--admin-line);
+}
+/* The "Edit" / "API" switch in a document's header. */
+.doc-tab {
+  border-radius: 999px;
+}
+.doc-tab--active,
+.doc-tab:hover {
+  background: var(--admin-surface);
+  box-shadow: inset 0 0 0 1px var(--admin-line);
+}
+
+/* ── Dashboard cards ───────────────────────────────────────────────── */
+.card {
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-line);
+  border-radius: var(--style-radius-m);
+  box-shadow: none;
+  padding: 18px 20px;
+  min-height: 64px;
+}
+.card:hover {
+  border-color: var(--color-base-300);
+  box-shadow: none;
+}
+.card__title {
+  font-weight: 500;
+  color: var(--admin-ink);
+}
+
+/* ── The edit view: one white panel on the ground ──────────────────── */
+.doc-controls {
+  background: color-mix(in srgb, var(--admin-ground) 85%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--admin-line);
+}
+.document-fields__edit {
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-line);
+  border-radius: var(--style-radius-l);
+  box-shadow: var(--admin-shadow);
+  margin: 24px 24px 48px;
+  padding-block: 32px;
+  /* The panel is inset by 24px, so the fields keep the header's left edge. */
+  padding-inline: calc(var(--gutter-h) - 24px);
+}
+
+/* Labels: small and quiet, so the text being edited is what reads. */
+.field-label,
+.field-type .field-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--admin-ink);
+  margin-bottom: 6px;
+}
+.field-description {
+  font-size: 12.5px;
+  color: var(--admin-muted);
+}
+.field-type input,
+.field-type textarea,
+.react-select .rs__control {
+  background: var(--admin-field);
+  border: 1px solid var(--admin-line);
+  border-radius: var(--style-radius-s);
+  box-shadow: none;
+  font-size: 14px;
+  color: var(--admin-navy);
+}
+.field-type input:hover,
+.field-type textarea:hover {
+  border-color: var(--color-base-250);
+}
+.field-type input:focus,
+.field-type textarea:focus {
+  background: var(--admin-surface);
+  border-color: var(--admin-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--admin-accent) 12%, transparent);
+}
+
+/* Top-level groups: a heading and air, divided by a hairline. */
+.group-field {
+  border-color: var(--admin-line);
+}
+.group-field--top-level {
+  padding-block: 28px;
+}
+.group-field__title,
+.array-field__title,
+.blocks-field__title {
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--admin-navy);
+}
+
+/* A group's heading text is a `.field-label` span inside the `h3` — it takes
+   the heading's size, not the 13px of a field label. */
+.group-field__title .field-label,
+.array-field__title .field-label,
+.blocks-field__title .field-label {
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  margin: 0;
+}
+
+/* Groups inside groups (a form field's label + placeholder, a toast's title +
+   body): a soft panel with a small heading — not a second big title on a
+   vertical rule. */
+.group-field--within-group,
+.group-field--gutter {
+  border-left: 0;
+  margin-top: 4px;
+  padding: 16px 18px 18px;
+  background: var(--color-base-50);
+  border: 1px solid var(--admin-line);
+  border-radius: var(--style-radius-m);
+}
+.group-field--within-group .group-field__title,
+.group-field--gutter .group-field__title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--admin-accent-strong);
+}
+.group-field--within-group .field-type input,
+.group-field--within-group .field-type textarea,
+.group-field--gutter .field-type input,
+.group-field--gutter .field-type textarea {
+  background: var(--admin-surface);
+}
+
+/* Array and block rows: one rounded frame, clipped, so Payload's own 4px
+   corners and borders on the bar and the body cannot show through it. */
+.collapsible,
+.collapsible--style-default,
+.collapsible--style-default:hover {
+  border: 1px solid var(--admin-line);
+  border-radius: var(--style-radius-m);
+  background: var(--admin-surface);
+  overflow: hidden;
+}
+.collapsible--style-default:hover {
+  border-color: var(--color-base-250);
+}
+.collapsible__toggle-wrap,
+.collapsible--collapsed .collapsible__toggle-wrap,
+.collapsible__toggle,
+.collapsible__content {
+  border-radius: 0;
+}
+.collapsible__toggle-wrap,
+.collapsible__toggle-wrap:not(.toggle-disabled):hover {
+  background: var(--color-base-50);
+}
+.collapsible:not(.collapsible--collapsed) > .collapsible__toggle-wrap {
+  border-bottom: 1px solid var(--admin-line);
+}
+.collapsible__content {
+  background: var(--admin-surface);
+}
+.collapsible__header-wrap,
+.row-label {
+  font-weight: 500;
+  color: var(--admin-ink);
+}
+
+/* Tabs (the SEO global): a segmented pill switch, every tab legible. */
+.tabs-field__tabs {
+  gap: 6px;
+  border-bottom: 0;
+  flex-wrap: wrap;
+  padding-bottom: 8px;
+}
+.tabs-field__tab-button {
+  border-radius: 999px;
+  padding: 7px 16px;
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-line);
+  color: var(--admin-ink);
+  font-weight: 500;
+  opacity: 1;
+}
+.tabs-field__tab-button:hover {
+  border-color: var(--color-base-250);
+  background: var(--color-base-50);
+}
+.tabs-field__tab-button--active,
+.tabs-field__tab-button--active:hover {
+  background: var(--admin-accent);
+  border-color: var(--admin-accent);
+  color: var(--admin-surface);
+}
+.tabs-field__tab-button::after {
+  display: none;
+}
+.tabs-field__description {
+  color: var(--admin-muted);
+}
+
+/* ── Login: the logo on the ground, the form on a card ─────────────── */
+.template-minimal {
+  background: var(--admin-ground);
+}
+.template-minimal__wrap {
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-line);
+  border-radius: var(--style-radius-l);
+  box-shadow: var(--admin-shadow);
+  padding: 40px 36px;
+}
+
+/* ── Brand marks (src/cms/admin/graphics.tsx) ──────────────────────── */
+.cms-logo {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: var(--admin-accent);
+}
+.cms-logo svg {
+  width: 168px;
+  height: auto;
+}
+.cms-logo__name {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.cms-logo__tag {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--admin-muted);
+}
+.cms-icon {
+  display: block;
+  border-radius: 4px;
+}
+
+/* ── Dashboard welcome (src/cms/admin/welcome.tsx) ─────────────────── */
+.cms-welcome {
+  margin-bottom: 20px;
+  padding: 28px 32px;
+  border-radius: var(--style-radius-l);
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-line);
+}
+.cms-welcome__eyebrow {
+  display: inline-block;
+  margin: 0 0 12px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--color-base-50);
+  font-size: 12px;
+  color: var(--admin-ink);
+  border: 1px solid var(--admin-line);
+}
+.cms-welcome__eyebrow span {
+  color: var(--admin-accent);
+}
+.cms-welcome__title {
+  margin: 0 0 8px;
+  font-size: 26px;
+  line-height: 1.2;
+  font-weight: 400;
+  color: var(--admin-muted);
+}
+.cms-welcome__title span {
+  color: var(--admin-accent-strong);
+}
+.cms-welcome__copy {
+  max-width: 620px;
+  margin: 0 0 16px;
+  color: var(--admin-ink);
+  line-height: 1.55;
+}
+.cms-welcome__link {
+  display: inline-flex;
+  padding: 9px 16px;
+  border-radius: 999px;
+  background-image: var(--admin-gradient);
+  color: var(--admin-surface);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+/* ── Analytics (src/cms/admin/analytics-*.tsx) ─────────────────────── */
+.ca {
+  padding-block: 32px 64px;
+}
+.ca-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.ca-head__title {
+  margin: 0 0 6px;
+  font-size: 30px;
+}
+.ca-head__copy {
+  margin: 0;
+  max-width: 560px;
+  color: var(--admin-muted);
+}
+.ca-range {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-line);
+}
+.ca-range a {
+  padding: 6px 14px;
+  border-radius: 999px;
+  color: var(--admin-ink);
+  text-decoration: none;
+  font-weight: 500;
+}
+.ca-range a.is-active {
+  background: var(--admin-accent);
+  color: var(--admin-surface);
+}
+
+.ca-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin: 0 0 16px;
+}
+.ca-kpi {
+  padding: 18px 20px;
+  border-radius: var(--style-radius-m);
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-line);
+}
+.ca-kpi__label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--admin-muted);
+}
+.ca-kpi__value {
+  margin: 6px 0 0;
+  font-size: 28px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--admin-navy);
+}
+.ca-kpi__delta {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 500;
+}
+.ca-kpi__delta span {
+  font-weight: 400;
+  color: var(--admin-muted);
+}
+.ca-kpi__delta.is-good {
+  color: var(--admin-good);
+}
+.ca-kpi__delta.is-bad {
+  color: var(--admin-bad);
+}
+.ca-kpis--compact .ca-kpi__value {
+  font-size: 24px;
+}
+.ca-live {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--admin-live);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--admin-live) 18%, transparent);
+}
+
+/* The day-by-day chart (analytics-chart.tsx). */
+.ca-chart {
+  margin: 0 0 16px;
+  padding: 18px 20px 12px;
+  border-radius: var(--style-radius-m);
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-line);
+}
+.ca-chart__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.ca-switch {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--color-base-50);
+  border: 1px solid var(--admin-line);
+}
+.ca-switch button {
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  font: inherit;
+  font-weight: 500;
+  color: var(--admin-ink);
+  cursor: pointer;
+}
+.ca-switch button.is-active {
+  background: var(--admin-surface);
+  color: var(--admin-accent-strong);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--admin-navy) 8%, transparent), inset 0 0 0 1px var(--admin-line);
+}
+.ca-chart__readout {
+  margin: 0;
+  color: var(--admin-muted);
+}
+.ca-chart__readout strong {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--admin-navy);
+}
+.ca-chart__svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.ca-chart__grid {
+  stroke: var(--admin-line);
+  stroke-width: 1;
+}
+.ca-chart__tick {
+  font-size: 12px;
+  fill: var(--admin-muted);
+}
+.ca-chart__stop {
+  stop-color: var(--admin-accent);
+}
+.ca-chart__line {
+  fill: none;
+  stroke: var(--admin-accent);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.ca-chart__cursor {
+  stroke: var(--color-base-250);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+.ca-chart__dot {
+  fill: var(--admin-surface);
+  stroke: var(--admin-accent);
+  stroke-width: 2.5;
+}
+
+.ca-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.ca-grid--wide {
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+}
+.ca-panel {
+  padding: 18px 20px;
+  border-radius: var(--style-radius-m);
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-line);
+}
+.ca-panel__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.ca-panel__title {
+  margin: 0;
+  font-size: 15px;
+}
+.ca-panel__cols {
+  display: inline-flex;
+  gap: 18px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--admin-muted);
+}
+.ca-panel__note {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: var(--admin-muted);
+}
+.ca-empty {
+  margin: 0;
+  color: var(--admin-muted);
+}
+.ca-rank {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.ca-rank__row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.ca-rank__bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--admin-accent-soft);
+  border-radius: 8px;
+}
+.ca-rank__label,
+.ca-rank__time,
+.ca-rank__count {
+  position: relative;
+}
+.ca-rank__label {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.ca-rank__badge {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-line);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--admin-muted);
+}
+.ca-rank__time {
+  width: 64px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--admin-muted);
+}
+.ca-rank__count {
+  min-width: 64px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--admin-ink);
+}
+.ca-rank__count small {
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--admin-muted);
+}
+
+.ca-card {
+  margin-bottom: 28px;
+}
+.ca-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.ca-card__title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--admin-muted);
+}
+.ca-card__link {
+  color: var(--admin-accent-strong);
+  font-weight: 500;
+  text-decoration: none;
+}
+.ca-card .ca-kpis {
+  margin: 0;
+}
+
+.ca-nav {
+  margin-top: 16px;
+}
+.ca-nav__label {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--admin-muted);
+}
+.ca-nav__link {
+  display: block;
+}
+
+/* ── Link preview in the SEO global (src/cms/admin/share-preview.tsx) ── */
+.cms-share {
+  margin: 8px 0 24px;
+}
+.cms-share__label {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--admin-muted);
+}
+.cms-share__card {
+  max-width: 520px;
+  margin: 0;
+  overflow: hidden;
+  border-radius: var(--style-radius-m);
+  border: 1px solid var(--admin-line);
+  background: var(--admin-surface);
+}
+.cms-share__image {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1200 / 630;
+  object-fit: cover;
+  border-bottom: 1px solid var(--admin-line);
+  background: var(--color-base-50);
+}
+.cms-share__body {
+  display: grid;
+  gap: 4px;
+  padding: 12px 16px 14px;
+}
+.cms-share__site {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--admin-muted);
+}
+.cms-share__title {
+  font-size: 15px;
+  line-height: 1.3;
+  color: var(--admin-ink);
+}
+.cms-share__description {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--admin-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.cms-share__address {
+  font-size: 12px;
+  color: var(--admin-accent);
+  word-break: break-all;
+}
+.cms-share__note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--admin-muted);
+}
+
+/* ── Editor's guide (src/cms/admin/guide-*.tsx) ─────────────────────── */
+.cms-welcome__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.cms-welcome__link--quiet {
+  background-image: none;
+  background: var(--admin-accent-soft);
+  color: var(--admin-accent-strong);
+}
+.cg {
+  padding-block: 32px 80px;
+  max-width: 1120px;
+}
+.cg-head {
+  margin-bottom: 40px;
+}
+.cg-head__eyebrow {
+  display: inline-block;
+  margin: 0 0 12px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--color-base-50);
+  font-size: 12px;
+  color: var(--admin-ink);
+  border: 1px solid var(--admin-line);
+}
+.cg-head__eyebrow span {
+  color: var(--admin-accent);
+}
+.cg-head__title {
+  margin: 0 0 8px;
+  font-size: 30px;
+  line-height: 1.15;
+  font-weight: 400;
+  color: var(--admin-navy);
+}
+.cg-head__copy {
+  max-width: 640px;
+  margin: 0 0 20px;
+  color: var(--admin-muted);
+  line-height: 1.55;
+}
+.cg-toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.cg-toc a {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--admin-line);
+  background: var(--admin-surface);
+  color: var(--admin-ink);
+  font-size: 13px;
+  text-decoration: none;
+}
+.cg-toc a:hover {
+  color: var(--admin-accent);
+  border-color: var(--admin-accent);
+}
+.cg-chapter {
+  margin-bottom: 48px;
+}
+.cg-chapter__head {
+  margin-bottom: 20px;
+  padding-top: 8px;
+}
+.cg-chapter__title {
+  margin: 0 0 6px;
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--admin-navy);
+  scroll-margin-top: 24px;
+}
+.cg-chapter__lead {
+  margin: 0;
+  max-width: 640px;
+  color: var(--admin-muted);
+  line-height: 1.55;
+}
+.cg-points {
+  margin: 0;
+  padding: 24px 28px;
+  list-style: none;
+  border-radius: var(--style-radius-l);
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-line);
+}
+.cg-points li {
+  position: relative;
+  padding-left: 18px;
+  line-height: 1.55;
+  color: var(--admin-ink);
+}
+.cg-points li + li {
+  margin-top: 12px;
+}
+.cg-points li::before,
+.cg-entry__fields li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--admin-accent);
+}
+.cg-entry {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  gap: 24px;
+  margin-bottom: 20px;
+  padding: 20px;
+  border-radius: var(--style-radius-l);
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-line);
+}
+.cg-entry--text {
+  grid-template-columns: 1fr;
+}
+.cg-entry__shot {
+  margin: 0;
+  align-self: start;
+}
+.cg-entry__shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 10px;
+  border: 1px solid var(--admin-line);
+  background: var(--admin-ground);
+}
+.cg-entry__where {
+  margin: 0 0 8px;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: var(--admin-accent-strong);
+}
+.cg-entry__title {
+  margin: 0 0 14px;
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--admin-navy);
+}
+.cg-entry__label {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--admin-muted);
+}
+.cg-entry__fields {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+.cg-entry__fields li {
+  position: relative;
+  padding-left: 16px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--admin-ink);
+}
+.cg-entry__fields li + li {
+  margin-top: 6px;
+}
+.cg-entry__note {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--admin-accent-soft);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--admin-ink);
+}
+@media (max-width: 900px) {
+  .cg-entry {
+    grid-template-columns: 1fr;
+  }
+}
