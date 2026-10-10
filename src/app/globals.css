@@ -17,6 +17,9 @@
   --raw-color-neutral-900: #171717;
   --raw-color-neutral-950: #0a0a0a;
 
+  --raw-radius-sm: 0.5rem;
+  --raw-radius-md: 0.75rem;
+
   --raw-duration-fast: 150ms;
   --raw-duration-normal: 250ms;
 }
@@ -34,6 +37,17 @@
 
   --duration-fast: var(--raw-duration-fast);
   --duration-normal: var(--raw-duration-normal);
+
+  /* Consent UI (cookie banner + preferences modal) — its own roles so it can be
+     dressed in the project's brand without touching the page theme. Re-point
+     these at the project's tokens when the site gets its palette — see
+     obsidian/frontend/components/common.md → "Brand the consent UI". */
+  --consent-surface: var(--background);
+  --consent-text: var(--foreground);
+  --consent-action: var(--foreground);
+  --consent-action-text: var(--background);
+  --consent-radius: var(--raw-radius-md);
+  --consent-radius-control: var(--raw-radius-sm);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -59,6 +73,12 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-consent-surface: var(--consent-surface);
+  --color-consent-text: var(--consent-text);
+  --color-consent-action: var(--consent-action);
+  --color-consent-action-text: var(--consent-action-text);
+  --radius-consent: var(--consent-radius);
+  --radius-consent-control: var(--consent-radius-control);
   --font-sans: var(--font-onest);
 
   /* Leading floor for clipped TextEngine reveals — see

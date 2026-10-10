@@ -51,6 +51,11 @@ wrapper background is the usual cause, not the asset itself.
 - Every colour/spacing/radius/type value resolves to a token.
 - New tokens follow the three-tier grammar and carry a comment naming their origin.
 - No literal reached `@theme inline` or a Tier 2 token.
+- The cookie banner and preferences modal match the site: `--consent-*` tokens
+  point at the project's palette (not the neutral defaults once a brand exists),
+  the type and buttons look like the site's, contrast passes light and dark, and
+  the banner copy is still the two short lines — see
+  `obsidian/frontend/components/common.md` → "Brand the consent UI".
 - A value that had to be invented because the design has no token for it is
   **flagged to the user for design review**, not quietly added.
 

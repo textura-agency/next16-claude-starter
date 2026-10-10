@@ -112,7 +112,7 @@ export const CookiePreferencesModal = () => {
           style={{
             transform: style.scale.to((s) => `translate(-50%, -50%) scale(${s})`),
           }}
-          className="absolute left-1/2 top-1/2 flex max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1.5rem)] max-w-[560px] flex-col gap-5 overflow-hidden rounded-xl border border-foreground/10 bg-background p-5 text-foreground shadow-2xl sm:p-7"
+          className="absolute left-1/2 top-1/2 flex max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1.5rem)] max-w-[560px] flex-col gap-5 overflow-hidden rounded-consent border border-consent-text/10 bg-consent-surface p-5 text-consent-text shadow-2xl sm:p-7"
         >
           <header className="flex items-start justify-between gap-3">
             <h2 id={TITLE_ID} className="text-xl font-medium leading-tight">
@@ -122,7 +122,7 @@ export const CookiePreferencesModal = () => {
               type="button"
               onClick={closeModal}
               aria-label="Close cookie preferences"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-foreground/10 text-foreground hover:bg-foreground/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-consent-control border border-consent-text/10 text-consent-text hover:bg-consent-text/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-consent-text"
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
                 <path
@@ -135,14 +135,14 @@ export const CookiePreferencesModal = () => {
             </button>
           </header>
 
-          <p className="text-sm leading-relaxed text-foreground/60">
+          <p className="text-sm leading-relaxed text-consent-text/60">
             Choose which categories of cookies we&apos;re allowed to use. You can
             change this any time. See our{" "}
             <Link
               href="/privacy-policy"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-foreground underline underline-offset-2"
+              className="text-consent-text underline underline-offset-2"
             >
               privacy policy
             </Link>
@@ -166,11 +166,11 @@ export const CookiePreferencesModal = () => {
               return (
                 <div
                   key={c.key}
-                  className="flex items-start justify-between gap-4 rounded-[10px] border border-foreground/10 px-4 py-3.5"
+                  className="flex items-start justify-between gap-4 rounded-consent-control border border-consent-text/10 px-4 py-3.5"
                 >
                   <div className="flex min-w-0 flex-col gap-1">
                     <h3 className="text-sm font-medium leading-snug">{c.title}</h3>
-                    <p className="text-xs leading-relaxed text-foreground/60">
+                    <p className="text-xs leading-relaxed text-consent-text/60">
                       {c.body}
                     </p>
                   </div>
@@ -224,13 +224,13 @@ const Toggle = ({ on, disabled, onChange, label }: ToggleProps) => {
       aria-disabled={disabled || undefined}
       disabled={disabled}
       onClick={onChange}
-      className={`relative h-6 w-11 shrink-0 rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground ${
-        on ? "bg-foreground" : "bg-foreground/15"
+      className={`relative h-6 w-11 shrink-0 rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-consent-text ${
+        on ? "bg-consent-action" : "bg-consent-text/15"
       } ${disabled ? "cursor-not-allowed opacity-55" : "cursor-pointer"}`}
     >
       <animated.span
         style={{ transform: knob.x.to((v) => `translateX(${v}px)`) }}
-        className="absolute left-[3px] top-[3px] block h-[18px] w-[18px] rounded-full bg-background shadow"
+        className="absolute left-[3px] top-[3px] block h-[18px] w-[18px] rounded-full bg-consent-action-text shadow"
       />
     </button>
   );

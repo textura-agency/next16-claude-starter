@@ -16,12 +16,12 @@ export interface CookieButtonProps {
 }
 
 const base =
-  "rounded-lg px-4 py-2 text-sm font-medium leading-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground";
+  "rounded-consent-control px-4 py-2 text-sm font-medium leading-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-consent-text";
 
 const variants: Record<NonNullable<CookieButtonProps["variant"]>, string> = {
-  primary: "bg-foreground text-background hover:opacity-90",
+  primary: "bg-consent-action text-consent-action-text hover:opacity-90",
   secondary:
-    "border border-foreground/15 bg-transparent text-foreground hover:bg-foreground/5",
+    "border border-consent-text/15 bg-transparent text-consent-text hover:bg-consent-text/5",
 };
 
 export const CookieButton = ({

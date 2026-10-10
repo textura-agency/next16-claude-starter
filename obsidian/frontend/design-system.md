@@ -1,6 +1,6 @@
 ---
 tags: [frontend, design-system, stable]
-updated: 2026-07-17
+updated: 2026-10-10
 ---
 
 # Design System — Tailwind v4
@@ -142,6 +142,11 @@ deliverable, not a palette. It defines:
   and two durations (`--raw-duration-fast/normal`).
 - **Tier 2:** `--background`, `--foreground`, `--duration-fast`, `--duration-normal`,
   with a dark-mode override via `@media (prefers-color-scheme: dark)`.
+- **Consent roles:** `--consent-surface`, `--consent-text`, `--consent-action`,
+  `--consent-action-text`, `--consent-radius`, `--consent-radius-control`
+  (bound as `consent-*` colours and radii) — the cookie banner and modal use only
+  these. They default to the neutral theme; **re-point them at the brand when the
+  project gets its palette** ([[components/common|common]] → *Brand the consent UI*).
 - **Bindings:** `--color-background`, `--color-foreground`, `--font-sans`,
   plus `--leading-display` (1.1 — the clip floor for [[text-engine]]) and
   `--ease-entrance`.

@@ -1,6 +1,6 @@
 ---
 tags: [meta, changelog]
-updated: 2026-10-07
+updated: 2026-10-10
 ---
 
 # Changelog
@@ -15,6 +15,16 @@ remembering. Routine commits do not need an entry.
 For *why* the conventions are what they are, see [[decisions-log]].
 
 ---
+
+## 2026-10-10
+
+**Consent UI is branded per project.** The cookie banner and preferences modal
+now style only through `--consent-*` tokens (surface, text, action, action text,
+two radii) that default to the neutral theme; every project re-points them at
+its palette and matches its type and buttons as part of the first build
+([[components/common|common]] → *Brand the consent UI*, step in [[new-page]],
+check in `qa-verify`). The banner copy is cut to two lines: "We use cookies to
+keep the site working. See our cookie policy."
 
 ## 2026-10-07
 

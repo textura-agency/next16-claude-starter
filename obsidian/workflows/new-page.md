@@ -1,6 +1,6 @@
 ---
 tags: [workflow, playbook, stable]
-updated: 2026-10-06
+updated: 2026-10-10
 ---
 
 # Workflow — Implement a New Page / Section
@@ -28,6 +28,10 @@ and hand it to an AI agent or follow it manually.
 5. **Tokens before styles.** Every colour/spacing/type/radius value must reference
    a token in `globals.css`. Missing value? Add the token first (with a comment on
    its origin). See [[design-system]].
+   **First page of a project?** Brand the consent banner + preferences modal
+   too — re-point the `--consent-*` tokens at the new palette and match the
+   site's type and buttons ([[components/common|common]] → *Brand the consent
+   UI*). It is on every page; leaving it neutral makes the site look unfinished.
 6. **Animate with the system.** Use [[animation-system]] primitives + [[text-engine]]
    for text. No CSS transitions/keyframes, no other libraries.
 7. **Data via props/hooks.** No hardcoded content. Placeholder data →

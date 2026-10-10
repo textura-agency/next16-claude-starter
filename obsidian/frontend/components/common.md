@@ -1,6 +1,6 @@
 ---
 tags: [frontend, stable]
-updated: 2026-10-06
+updated: 2026-10-10
 ---
 
 # Catalog — Common Components
@@ -56,12 +56,59 @@ Persisted to `localStorage` under `CONSENT_STORAGE_KEY` (`cookie-consent-v1`).
 Three categories: `necessary` (always on), `analytics`, `marketing`. ("Accept
 all" used to save every category **off** — the same as "Reject all"; fixed.)
 
-**Styling & motion** — ported to the project stack: Tailwind v4 with the
-`background` / `foreground` design tokens (dark-mode adaptive, no hardcoded hex),
-and `@react-spring/web` for all motion — `useTransition` drives the banner and
+**Styling & motion** — ported to the project stack: Tailwind v4 on its own
+`consent-*` tokens (which default to `background` / `foreground` — dark-mode
+adaptive, no hardcoded hex), and `@react-spring/web` for all motion — `useTransition` drives the banner and
 modal mount/unmount, `useSpring` drives the toggle knob. No CSS transitions.
 The modal locks scroll through the Lenis [[smooth-scroll|scroll store]]
 (`useScroll.stop()`), not `body` overflow.
+
+### Brand the consent UI — every project, automatically
+
+The starter's banner is neutral on purpose. **Whenever a site is built on the
+starter, the consent banner and the preferences modal are dressed in that
+project's style as part of the build** — nobody should have to ask. Do it as soon
+as the project has its palette and type (the first page or section built from the
+design), and re-check it whenever the palette changes.
+
+1. **Re-point the consent tokens** in `globals.css` (Tier 2) at the project's
+   own semantic tokens — never at a literal:
+
+   | Token | Role | Typical source |
+   |-------|------|----------------|
+   | `--consent-surface` | Banner / modal background | the site's card or surface colour |
+   | `--consent-text` | Title, body, borders (at `/10`), muted copy (at `/70`) | the site's text colour on that surface |
+   | `--consent-action` | Primary button fill, toggle "on" | the site's primary button / accent |
+   | `--consent-action-text` | Label on the primary button, toggle knob | the label colour on that button |
+   | `--consent-radius` | Banner and modal corners | the site's card radius |
+   | `--consent-radius-control` | Buttons, close button, category rows | the site's button radius |
+
+2. **Typography** — the banner uses `font-sans` (the site's body font). If the
+   site sets headings in a display face, give the banner title and the modal
+   title that heading font utility and its tracking/leading tokens; button labels
+   follow the site's button style (case, tracking, weight).
+3. **Buttons** — `CookieButton` should look like the site's own buttons
+   (primary + secondary/outline). If the project has a `components/ui` button,
+   match its classes — or render it — rather than inventing a third style.
+4. **Keep the shape**, not the look: the banner stays bottom-right (full-width
+   with a 1rem gutter on phones), server-rendered, `data-cookie-banner`, motion
+   on springs. Branding is colour, type, radius, border and shadow only — never a
+   loader-gated entrance (it is the phone's LCP).
+5. **Check it** — contrast AA for body copy at `/70` and the primary button label
+   on `--consent-action`, in light **and** dark (`prefers-color-scheme: dark`).
+   If the site has no dark theme, give the consent tokens fixed values so a
+   dark-mode phone doesn't get a dark banner on a light site.
+
+**Copy stays short.** Title "This website uses cookies"; the line under it is
+exactly:
+
+> We use cookies to keep the site working.
+> See our cookie policy.
+
+("cookie policy" links to `/privacy-policy`, which carries the cookies
+section.) Don't grow it back into a paragraph — on a phone the banner is the
+LCP element and more text makes it taller over the first screen. Brand voice may
+reword the title; the detail lives in the preferences modal.
 
 > [!note] `#todo`
 > The privacy-policy link points to `/privacy-policy`, which ships as a
