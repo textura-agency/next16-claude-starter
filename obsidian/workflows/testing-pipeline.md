@@ -119,6 +119,7 @@ yarn qa:fps --url …        # frames the scene really draws vs the display's rA
 yarn qa:context --url …    # WebGL context lost off-screen / on-screen — the hero must come back
 yarn qa:resize --url …     # live window resize, DevTools device mode, rotation — lands where a fresh load does
 yarn qa:motion --url …     # reduced motion + robot form: the page must stay responsive (looping springs hang it)
+yarn qa:seo --url …        # the served HTML as crawlers read it: titles, descriptions, canonicals, h1, JSON-LD, orphans, hreflang, robot parity
 yarn qa:webkit --url …     # the same checks in WebKit (iPhone profile) for iOS-only bugs
 ```
 
@@ -171,6 +172,16 @@ node tools/qa/capture-still.mjs --url …   # the scene's still for the robot fo
 
 Look at the share image and the 32 px / 180 px icons yourself. Title = brand +
 what it is; description from the site's own copy; no placeholder author/handle.
+
+## After launch — Search Console, not the site
+
+`yarn seo:grow <export.zip>` (`tools/qa/gsc-grow.mjs`) reads a Search Console
+Performance export — not a QA gate, run it a month or more after launch:
+striking-distance queries, low CTR for the rank, zero-click pages, decliners
+(the *Compare* export), cannibalisation (`--pairs` query×page CSV), ranked by
+estimated clicks from the site's own CTR curve. Report in
+`reports/qa/gsc-grow/<stamp>/`. The `seo-grow` skill / `/seo-grow` turns it into
+one change set per page, logged, re-measured 4–6 weeks later on the same window.
 
 ## Reporting
 

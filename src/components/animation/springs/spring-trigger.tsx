@@ -22,7 +22,7 @@
 
 "use client";
 
-import { animated, config, easings, SpringConfig } from "@react-spring/web";
+import { animated, easings, SpringConfig } from "@react-spring/web";
 import {
   CSSProperties,
   ElementType,

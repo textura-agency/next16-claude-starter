@@ -1,0 +1,304 @@
+// 📖 Docs: obsidian/backend/cms-payload.md · .claude/skills/payload-cms/references/collection-pages.md
+import type { CollectionConfig, Field } from "payload";
+import { HeadingFeature, LinkFeature, lexicalEditor } from "@payloadcms/richtext-lexical";
+
+import { revalidateOnChange, revalidateOnDelete } from "../collection-hooks";
+import { ENTRIES, qualityOf } from "../entries-config";
+import { searchFields } from "../fields/search";
+import { keepPreviousSlug, slugFields } from "../fields/slug";
+
+/**
+ * Many pages from one template — `/<hub>/<slug>`: locations, services,
+ * integrations, use cases, a directory. The data makes each page; the
+ * template makes them consistent. What keeps hundreds of them from being
+ * "scaled content" in Google's eyes is that each one carries something the
+ * others don't — facts, its own words, its own questions — so the admin
+ * measures that (`qualityOf`) and a page below the bar is `noindex` and out
+ * of the sitemap until it is filled. The "Indexing" readout in the sidebar
+ * says which, and why.
+ *
+ * `kind` picks the page's JSON-LD: a plain page, a `Service`, or a
+ * `LocalBusiness` location (its own tab of address, hours and map — every
+ * value exactly as the location's Business Profile writes it; skill `local-seo`).
+ *
+ * PROJECT CONFIG: the names in `ENTRIES` (`entries-config.ts`), and `admin.group`.
+ */
+
+const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
+const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+const isKind =
+  (kind: string) =>
+  (data: Partial<Record<string, unknown>>): boolean =>
+    data?.kind === kind;
+
+const timeField = (name: string, label: string): Field => ({
+  name,
+  type: "text",
+  label,
+  required: true,
+  admin: { width: "50%", placeholder: "09:00" },
+  validate: (value: unknown) =>
+    typeof value === "string" && TIME.test(value) ? true : "24-hour time, e.g. 09:00 or 17:30.",
+});
+
+export const Entries: CollectionConfig = {
+  slug: "entries",
+  labels: { singular: ENTRIES.singular, plural: ENTRIES.label },
+  admin: {
+    useAsTitle: "title",
+    group: ENTRIES.label,
+    defaultColumns: ["title", "group", "kind", "_status", "updatedAt"],
+    description: `One page each at ${ENTRIES.path}/<address>. A page shows in search once it has ${ENTRIES.minFacts} facts and ${ENTRIES.minWords} words of its own.`,
+  },
+  versions: { drafts: true, maxPerDoc: 25 },
+  access: {
+    read: ({ req }) => (req.user ? true : { _status: { equals: "published" } }),
+  },
+  hooks: {
+    beforeChange: [keepPreviousSlug],
+    afterChange: [revalidateOnChange],
+    afterDelete: [revalidateOnDelete],
+  },
+  fields: [
+    {
+      type: "tabs",
+      tabs: [
+        {
+          label: "Page",
+          fields: [
+            {
+              name: "title",
+              type: "text",
+              label: "Title",
+              required: true,
+              unique: true,
+              admin: {
+                description:
+                  "The page's heading — the name searchers use for this one thing (\"Physiotherapy in Leeds\", \"Slack integration\"). Unique across the set.",
+              },
+            },
+            {
+              name: "summary",
+              type: "textarea",
+              label: "Summary",
+              required: true,
+              minLength: 70,
+              maxLength: 200,
+              admin: {
+                description:
+                  "What this page offers that the others don't, in one or two sentences — the search description and the hub's card. Not the same sentence with another name swapped in.",
+              },
+            },
+            {
+              name: "group",
+              type: "text",
+              label: "Group",
+              index: true,
+              admin: {
+                description:
+                  "Where it sits on the hub, and which pages it links to as \"More in …\" — a region, a category. Blank: Other.",
+              },
+            },
+            { name: "image", type: "upload", relationTo: "media", label: "Image" },
+            {
+              name: "facts",
+              type: "array",
+              label: "Facts",
+              labels: { singular: "Fact", plural: "Facts" },
+              admin: {
+                description:
+                  "The data that makes this page different: prices, sizes, times, counts, specs. Shown as a list — and what answer engines quote.",
+              },
+              fields: [
+                {
+                  type: "row",
+                  fields: [
+                    { name: "label", type: "text", label: "Label", required: true, admin: { width: "40%" } },
+                    { name: "value", type: "text", label: "Value", required: true, admin: { width: "60%" } },
+                  ],
+                },
+              ],
+            },
+            {
+              name: "body",
+              type: "richText",
+              label: "Body",
+              editor: lexicalEditor({
+                features: ({ defaultFeatures }) => [
+                  ...defaultFeatures.filter((feature) => !["heading", "link"].includes(feature.key)),
+                  HeadingFeature({ enabledHeadingSizes: ["h2", "h3"] }),
+                  LinkFeature({ enabledCollections: ["entries"] }),
+                ],
+              }),
+              admin: { description: "This page's own words — written for it, not a template with the name changed." },
+            },
+            {
+              name: "faqs",
+              type: "array",
+              label: "Questions",
+              labels: { singular: "Question", plural: "Questions" },
+              admin: { description: "Questions people ask about this one — shown on the page, and in its structured data." },
+              fields: [
+                { name: "question", type: "text", label: "Question", required: true },
+                { name: "answer", type: "textarea", label: "Answer", required: true },
+              ],
+            },
+          ],
+        },
+        {
+          label: "Place",
+          description: "For a location page — every value exactly as this location's Google Business Profile writes it.",
+          admin: { condition: isKind("location") },
+          fields: [
+            {
+              name: "place",
+              type: "group",
+              label: false,
+              fields: [
+                {
+                  name: "businessType",
+                  type: "text",
+                  label: "Business type",
+                  defaultValue: "LocalBusiness",
+                  admin: {
+                    description:
+                      "A schema.org LocalBusiness type — Dentist, Restaurant, ProfessionalService, AutoRepair… The most specific that fits.",
+                  },
+                },
+                { name: "streetAddress", type: "text", label: "Street address" },
+                {
+                  type: "row",
+                  fields: [
+                    { name: "addressLocality", type: "text", label: "Town / city", admin: { width: "50%" } },
+                    { name: "addressRegion", type: "text", label: "Region", admin: { width: "50%" } },
+                  ],
+                },
+                {
+                  type: "row",
+                  fields: [
+                    { name: "postalCode", type: "text", label: "Postcode", admin: { width: "50%" } },
+                    {
+                      name: "addressCountry",
+                      type: "text",
+                      label: "Country code",
+                      admin: { width: "50%", description: "Two letters — GB, US, DE." },
+                    },
+                  ],
+                },
+                {
+                  type: "row",
+                  fields: [
+                    { name: "telephone", type: "text", label: "Telephone", admin: { width: "50%", description: "International: +44 113 496 0000" } },
+                    { name: "email", type: "email", label: "Email", admin: { width: "50%" } },
+                  ],
+                },
+                {
+                  type: "row",
+                  fields: [
+                    { name: "latitude", type: "number", label: "Latitude", admin: { width: "50%" } },
+                    { name: "longitude", type: "number", label: "Longitude", admin: { width: "50%" } },
+                  ],
+                },
+                {
+                  name: "hours",
+                  type: "array",
+                  label: "Opening hours",
+                  labels: { singular: "Hours", plural: "Hours" },
+                  admin: { description: "One row per set of days with the same times." },
+                  fields: [
+                    {
+                      name: "days",
+                      type: "select",
+                      hasMany: true,
+                      required: true,
+                      label: "Days",
+                      options: WEEKDAYS.map((day) => ({ label: day, value: day })),
+                    },
+                    { type: "row", fields: [timeField("opens", "Opens"), timeField("closes", "Closes")] },
+                  ],
+                },
+                { name: "priceRange", type: "text", label: "Price range", admin: { description: "$–$$$$, or a range like £40–£120." } },
+                {
+                  name: "mapUrl",
+                  type: "text",
+                  label: "Map listing",
+                  admin: { description: "This location's Google Maps / Business Profile URL — linked on the page, never embedded." },
+                },
+              ],
+            },
+          ],
+        },
+        {
+          label: "Service",
+          admin: { condition: isKind("service") },
+          fields: [
+            {
+              name: "service",
+              type: "group",
+              label: false,
+              fields: [
+                {
+                  name: "serviceType",
+                  type: "text",
+                  label: "Service type",
+                  admin: { description: "The category in searchers' words — \"Brand identity design\"." },
+                },
+                {
+                  name: "areaServed",
+                  type: "array",
+                  label: "Areas served",
+                  fields: [{ name: "name", type: "text", label: "Town, region or country", required: true }],
+                },
+              ],
+            },
+          ],
+        },
+        { label: "Search & sharing", fields: searchFields() },
+      ],
+    },
+    ...slugFields("title"),
+    {
+      name: "kind",
+      type: "select",
+      label: "Kind of page",
+      required: true,
+      defaultValue: ENTRIES.defaultKind,
+      options: [
+        { label: "Page", value: "page" },
+        { label: "Service", value: "service" },
+        { label: "Location", value: "location" },
+      ],
+      admin: { position: "sidebar", description: "Decides the structured data — and shows the Place or Service tab." },
+    },
+    {
+      name: "related",
+      type: "relationship",
+      relationTo: "entries",
+      hasMany: true,
+      maxRows: 6,
+      label: "Related pages",
+      filterOptions: ({ id }) => (id ? { id: { not_equals: id } } : true),
+      admin: { position: "sidebar", description: "Linked under \"See also\". The rest of its group is linked anyway." },
+    },
+    {
+      name: "indexing",
+      type: "text",
+      label: "Indexing",
+      virtual: true,
+      admin: {
+        position: "sidebar",
+        readOnly: true,
+        description: "Whether search engines are asked to index it — updated on save.",
+      },
+      hooks: {
+        afterRead: [
+          ({ data }) => {
+            const { indexable, reasons } = qualityOf(data ?? {});
+            return indexable ? "Shown in search" : `Hidden from search: ${reasons.join("; ")}`;
+          },
+        ],
+      },
+    },
+  ],
+};

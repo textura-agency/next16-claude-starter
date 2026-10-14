@@ -45,7 +45,7 @@ async function sweep(name) {
     if (d.cpu > 1 && !o.robot) await (await page.createCDPSession()).send("Emulation.setCPUThrottlingRate", { rate: d.cpu });
     await page.evaluateOnNewDocument(axeSrc);
     const t0 = Date.now();
-    page.goto(o.url, { waitUntil: "load", timeout: 60_000 }).catch(() => {});
+    page.goto(o.url, { waitUntil: "load", timeout: 60_000 }).catch(() => undefined);
     const seen = new Map();
     let samples = 0, lastSample = [];
     while (Date.now() - t0 < total) {

@@ -1,0 +1,96 @@
+// 📖 Docs: obsidian/backend/cms-payload.md
+/**
+ * What the collection reads share: a guarded Local API call, an upload read
+ * as an image, and a breadcrumb trail for pages the route registry can't list
+ * (one per post, one per entry).
+ *
+ * The rule is the core kit's (D4): no database, a server that is down, or a
+ * table whose migration hasn't run → the fallback, the error logged. A blog
+ * with no database is an empty blog, never a broken build.
+ *
+ * Shared by the blog and collection kits (`templates/cms-shared`, added with either).
+ */
+import "server-only";
+
+import { getPayload, type Payload } from "payload";
+
+import config from "@payload-config";
+import { getServerEnv } from "@/env";
+import { routeTrail } from "@/lib/routes";
+import { absoluteUrl, type JsonLdNode } from "@/utils/seo/structured-data";
+
+/**
+ * Runs a read against Payload, or returns `fallback` when there is no
+ * database or the read fails. `label` names the read in the log.
+ */
+export const safely = async <T>(
+  label: string,
+  fallback: T,
+  read: (payload: Payload) => Promise<T>,
+): Promise<T> => {
+  if (!getServerEnv().DATABASE_URL) return fallback;
+  try {
+    return await read(await getPayload({ config }));
+  } catch (error) {
+    console.error(`[cms] ${label} unavailable`, error);
+    return fallback;
+  }
+};
+
+export interface Image {
+  url: string;
+  alt: string;
+  width?: number;
+  height?: number;
+}
+
+/** An upload field's value as an image, when it was read as a document with a URL. */
+export const imageOf = (value: unknown): Image | undefined => {
+  if (typeof value !== "object" || value === null) return undefined;
+  const doc = value as { url?: unknown; alt?: unknown; width?: unknown; height?: unknown };
+  if (typeof doc.url !== "string" || doc.url === "") return undefined;
+  return {
+    url: doc.url,
+    alt: typeof doc.alt === "string" ? doc.alt : "",
+    ...(typeof doc.width === "number" ? { width: doc.width } : {}),
+    ...(typeof doc.height === "number" ? { height: doc.height } : {}),
+  };
+};
+
+/** A relationship's value when it was read as a document (depth ≥ 1), else nothing. */
+export const docOf = <T extends object>(value: number | string | T | null | undefined): T | undefined =>
+  typeof value === "object" && value !== null ? value : undefined;
+
+/** A `YYYY-MM-DD` day from a Payload date, for `<time>` and JSON-LD. */
+export const dayOf = (value: string | null | undefined): string | undefined =>
+  value ? value.slice(0, 10) : undefined;
+
+export interface Crumb {
+  label: string;
+  path: string;
+}
+
+/**
+ * The visible trail and its JSON-LD twin for a page under a registered hub:
+ * the registry's chain to the hub (Home → Blog), then `tail` (a topic, the
+ * post). The page renders the same list it describes — a breadcrumb in the
+ * schema that the page does not show is the kind Google ignores.
+ */
+export const trailFor = (hubPath: string, tail: readonly Crumb[]) => {
+  const crumbs: Crumb[] = [
+    ...routeTrail(hubPath).map((route) => ({ label: route.label, path: route.path })),
+    ...tail,
+  ];
+  const last = crumbs.at(-1)?.path ?? hubPath;
+  const node: JsonLdNode = {
+    "@type": "BreadcrumbList",
+    "@id": `${absoluteUrl(last)}#breadcrumb`,
+    itemListElement: crumbs.map((crumb, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: crumb.label,
+      item: absoluteUrl(crumb.path),
+    })),
+  };
+  return { crumbs, node };
+};

@@ -61,7 +61,9 @@ Runs on the first init after the migration.
     }));
   }
   ```
-- [ ] `robots.ts`: `disallow: ["/robot-view", "/admin", "/api/"]`
+- [ ] blog / collection kits installed → append their `getBlogSitemap()` /
+      `getEntriesSitemap()` entries (`references/blog.md`, `collection-pages.md`)
+- [ ] `robots.ts`: `NEVER_CRAWLED = ["/robot-view", "/admin", "/api/"]` (every group, AI crawlers included, repeats it)
 - [ ] `/llms.txt` lists exactly the sitemap's pages
 - [ ] a new route later = an `SEO_PAGES` entry + a migration
 - [ ] Lighthouse SEO 100 on every route, people + robot form

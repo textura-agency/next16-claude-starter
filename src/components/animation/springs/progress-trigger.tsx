@@ -27,7 +27,7 @@ import { SpringConfig, config } from "@react-spring/web";
 import { Tags } from "@/types/springs";
 import { useProgressTrigger } from "@/hooks/animation/use-progress-trigger";
 
-const VarTextTag = forwardRef<HTMLElement, { tag?: Tags; children?: React.ReactNode; className?: string; style?: CSSProperties; [key: string]: any }>(
+const VarTextTag = forwardRef<HTMLElement, { tag?: Tags; children?: React.ReactNode; className?: string; style?: CSSProperties } & React.HTMLAttributes<HTMLElement>>(
   ({ tag = "span", children, className, style, ...props }, outerRef) => {
     const ref = useRef<HTMLElement | null>(null);
     useImperativeHandle(outerRef, () => ref.current as HTMLElement);

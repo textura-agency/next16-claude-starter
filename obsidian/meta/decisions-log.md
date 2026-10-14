@@ -17,6 +17,105 @@ Template: [[templates/adr-note]].
 
 ---
 
+## ADR-0030 — Lint rules back on; the engine typed (authorised edit)
+
+**Status:** Accepted · 2026-10-14 · amends ADR-0009 (engine protection)
+
+**Decision.** `eslint.config.mjs` no longer switches off eight rules
+(`no-explicit-any`, `no-unused-vars`, `ban-ts-comment`,
+`no-unused-expressions`, `no-empty-object-type`, `no-empty-function`,
+`prefer-const`, `react-hooks/set-state-in-effect`). They hid 63 problems while
+`yarn lint` reported clean — 14 `any` despite hard rule #7. All were fixed;
+`no-unused-vars` keeps `ignoreRestSiblings` and `^_` (the robot twins discard
+props by destructuring). Payload's generated files are ignored
+(`payload-types.ts`, `migrations/`, `importMap.js`).
+
+The vendored engine was edited **with the owner's explicit sign-off** — types
+and dead code only, no behaviour: `SpringStyle` / `TriggerRef` /
+`SpringConfig` replace `any` (`src/types/springs.ts`), `useLoopInView` takes
+any `Element` ref (the `@ts-expect-error`s it forced are gone), `Spring`'s tag
+prop is `Tags` not `keyof Tags`, `coords.ts` is typed instead of
+`@ts-nocheck`, unused imports dropped. One fix: `Handle` now renders its `tag`
+prop (it was ignored; default `div` unchanged). Outside the engine:
+`LazyCookie` reads the robot marker with `useSyncExternalStore`, the cookie
+modal re-seeds its toggles during render, `ScrollController` derives the hash,
+and the Payload kit's share preview keys its read by id — no setState inside
+an effect body.
+
+**Why.** A lint that passes because its rules are off is not a check. The bar
+is `yarn lint --max-warnings 0` on the starter and on every Payload kit.
+
+**When building.** `verify.sh` FAILs ("vendored animation engine modified")
+until this change is committed — the commit is the sign-off record. Verified:
+`tsc`, lint (0 problems, also on all kits in a scaffolded Payload project),
+build, `qa:motion` PASS (reduced motion, Googlebot, GPTBot).
+
+---
+
+## ADR-0029 — Content at scale ships as CMS kits with an indexing bar; growth is measured from Search Console
+
+**Status:** Accepted · 2026-10-14 · extends ADR-0027, ADR-0028
+
+**Decision.** Blogs and sets of data-driven pages are Payload collections
+installed from kits (`blog`, `collection`, sharing `cms-shared`), not
+hand-built per project. Each kit builds a page's metadata, JSON-LD, sitemap
+entries and `/llms.txt` lines in one module; a page is indexed only when it
+clears a bar (a topic with ≥ 2 posts; an entry with its own words and facts),
+and the admin says why one is held back. Old slugs redirect (308). Local
+facts live in `siteConfig.organization` (one NAP source); hreflang is opt-in
+from the route registry, validated at build time, with subdirectories and the
+default language unprefixed as the recommended structure. After launch, the
+next change comes from a Search Console export (`yarn seo:grow`), and a win is
+reported only from the comparison export on the same window.
+
+**Why.** The first batch (ADR-0028) made sites *rankable*; most traffic is
+then won in the long tail — articles and page sets — and lost to thin,
+templated, orphaned or renamed pages. Those defects are structural, so the
+guard rails belong in the kit, not in a reminder. Growth work without a
+measured baseline was guessing.
+
+**When building.** `payload-cms` §kits + `references/blog.md` /
+`collection-pages.md`; skills `local-seo`, `i18n-seo`, `seo-grow`. Don't lower
+the indexing bar to make a set "complete" — fill the pages.
+
+---
+
+## ADR-0028 — One route registry feeds every list of pages; SEO is measured by value, not by score
+
+**Status:** Accepted · 2026-10-14 · extends ADR-0021 (SEO & AEO practice)
+
+**Context.** `sitemap.ts` was a hand-kept array — routes went missing from it
+on site after site — and stamped every entry with the build time. `/llms.txt`
+was described in the AEO skill but shipped only in the Payload kit; robots.txt
+said nothing about AI crawlers; the JSON-LD helper built only Organization +
+WebSite. A comparison with coreyhaines31/marketingskills showed its skills
+assume these exist, and that our `schema-markup` skill still recommended FAQ
+markup for a rich result Google stopped showing in May 2026. Lighthouse SEO had
+already proven blind to wrong values (localhost canonicals, "New Project"
+titles at 100).
+
+**Decision.**
+1. `src/lib/routes.ts` (`ROUTES`) is the one list of public pages. The sitemap,
+   `/llms.txt` and breadcrumbs derive from it; `verify.sh` FAILs on a page
+   without an entry. Plain data, no imports, so client code can read it.
+2. `<lastmod>` comes only from a route's real content date, or is omitted.
+3. robots.txt states a policy per AI-crawler purpose (search, user fetch,
+   training) from `siteConfig.aiCrawlers`, defaulting to allow; the client
+   decides.
+4. JSON-LD is built by typed builders in `structured-data.ts` and rendered by
+   `<JsonLd>` — one site graph in the root layout, one page graph per view,
+   entities linked by `@id`.
+5. `yarn qa:seo` crawls the served HTML (people + Googlebot) and fails on wrong
+   *values*; it joins the ship gate.
+
+**Consequences.** A new page is one registry entry plus its view; forgetting it
+fails `verify.sh`. A Payload project keeps `ROUTES` alongside its `SEO_PAGES`.
+Organisation facts live in `siteConfig.organization` — the single source for
+the schema, `/llms.txt` and the About copy. Content strategy (keyword map,
+architecture, article/collection kits) is not decided here — next step.
+
+---
+
 ## ADR-0027 — The CMS admin is a flow with kits: derived fields, merged reads, SEO per page, the site's look, a guide
 
 **Status:** Accepted · 2026-10-07 · extends ADR-0020 (Payload + Supabase)

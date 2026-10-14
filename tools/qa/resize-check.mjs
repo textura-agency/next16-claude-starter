@@ -85,7 +85,7 @@ const diff = (a, b) => {
   }
   return d;
 };
-const hide = (page) => page.evaluate((sel) => { for (const el of document.querySelectorAll(sel)) el.style.setProperty("visibility", "hidden", "important"); }, o.hide).catch(() => {});
+const hide = (page) => page.evaluate((sel) => { for (const el of document.querySelectorAll(sel)) el.style.setProperty("visibility", "hidden", "important"); }, o.hide).catch(() => undefined);
 
 const PHONE = { w: 390, h: 844, dpr: 3, mobile: true, touch: true };
 const SCENARIOS = [

@@ -1,0 +1,14 @@
+import { EntryView, getEntryPageMetadata, getEntryStaticParams } from "@/views/entries/entry-page";
+
+interface Props {
+  params: Promise<{ slug: string }>;
+}
+
+/** Every one prerendered at build; one published later renders on its first visit. */
+export const generateStaticParams = getEntryStaticParams;
+
+export const generateMetadata = async ({ params }: Props) => getEntryPageMetadata((await params).slug);
+
+export default async function EntryPage({ params }: Props) {
+  return <EntryView slug={(await params).slug} />;
+}

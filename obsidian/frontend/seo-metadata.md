@@ -1,6 +1,6 @@
 ---
 tags: [frontend, seo, stable]
-updated: 2026-10-07
+updated: 2026-10-14
 ---
 
 # SEO & Metadata
@@ -29,6 +29,9 @@ handle, author, theme/background colours, locale. The metadata generator,
 | `twitterHandle` | the site's real handle, or `undefined` — the tags are then omitted. An invented handle tags a stranger |
 | `author` | the brand (author / creator / publisher) |
 | `themeColor` / `backgroundColor` | the brand's ground |
+| `organization` | founding date, email, telephone, address, `sameAs` profiles — the JSON-LD `Organization` and `/llms.txt` "Key facts". Only what is true and stated elsewhere identically; leave a field out rather than guess |
+| `aiCrawlers` | `{ search, userFetch, training }` — the client's policy per purpose (robots.txt below). Defaults all `true` |
+| `verification` | Search Console / Bing codes, from the env (`GOOGLE_SITE_VERIFICATION`, `BING_SITE_VERIFICATION`) |
 
 `siteConfig` is **server-only** — it reads the server env, which pulls in
 `zod`. A client component importing it ships ~69 KB gz of zod (a banner's
@@ -111,13 +114,71 @@ mark and a dashed "Replace public/open-graph.png" card. Per project:
 5. Check the rendered head: `curl -s localhost:3000/ | grep -oE '<(meta|link)[^>]+>'`
    — and the robot form carries the same.
 
-## robots.txt, sitemap.xml, manifest
+## The route registry — `src/lib/routes.ts`
 
-- `src/app/robots.ts` → `/robots.txt` — allows all, disallows `/robot-view`
-  (the robot form's own path — it is served under `/`), points at the sitemap.
-- `src/app/sitemap.ts` → `/sitemap.xml` — one entry per public route (`/`,
-  `/privacy-policy`). Add one with every route.
+`ROUTES` lists every public page once: `path`, `label`, `summary`,
+`indexable`, `updated` (the content's real date), `changeFrequency`,
+`priority`, `parent`. Plain data with no imports, so a client nav may read it.
+Everything that lists pages reads it:
+
+| Output | From the registry |
+|---|---|
+| `/sitemap.xml` | every `indexable` route; `<lastmod>` only from `updated` |
+| `/llms.txt` | every `indexable` route with its `summary` |
+| breadcrumb JSON-LD | `routeTrail(path)` follows `parent` up to `/` |
+
+`.claude/scripts/verify.sh` FAILs when an `app/**/page.tsx` has no entry
+(route groups drop out of the path; `[slug]` routes list their pages from data
+and are skipped). The old hand-kept sitemap array was the most common SEO miss
+on sites built from this starter, and it stamped `lastModified: new Date()` on
+every page every deploy — a date that always moves is a date Google ignores.
+
+### Languages — `alternates` (opt-in)
+
+A route with translations lists them: `alternates: { en: "/pricing", de:
+"/de/preise" }` (each version includes itself). `routeLanguages(path)`
+(`src/utils/seo/hreflang.ts`) turns that into the hreflang map with
+`x-default` → `generateMetadata({ languages, alternateLocales })` → `<link
+rel="alternate" hreflang>` + `og:locale:alternate`; `sitemap.ts` emits the same
+as `<xhtml:link>`. An invalid code (`en_GB`, `en-UK`) or a set missing the page
+itself **fails the build**. Single-language sites: no field, no output — the
+sitemap and `<head>` are byte-identical. Full setup (`app/[lang]`, the proxy
+per locale): skill `i18n-seo`.
+
+CMS collections (blog posts, data-driven pages) aren't registry entries —
+their hub is; the Payload kits append their pages to the sitemap and
+`/llms.txt` ([[cms-payload]]).
+
+## robots.txt, sitemap.xml, llms.txt, manifest
+
+- `src/app/robots.ts` → `/robots.txt` — `*` allowed, `/robot-view` disallowed
+  (the robot form's own path — it is served under `/`), the sitemap linked.
+  Then **one named group per AI-crawler purpose**, allowed or disallowed by
+  `siteConfig.aiCrawlers`:
+  - `search` — `OAI-SearchBot`, `Claude-SearchBot`, `PerplexityBot`: index for
+    AI answers and cite. Blocking them removes the site from those answers.
+  - `userFetch` — `ChatGPT-User`, `Claude-User`, `Perplexity-User`: a person
+    asked an assistant to open the page.
+  - `training` — `GPTBot`, `ClaudeBot`, `CCBot`, `Google-Extended`,
+    `Applebot-Extended`, `Meta-ExternalAgent`, `Bytespider`: a training
+    opt-out; doesn't by itself remove citations, never touches Google Search.
+
+  A named group replaces `*` for that crawler, so each repeats the disallow
+  list. The policy is the client's decision — ask; the defaults allow all.
+- `src/app/sitemap.ts` → `/sitemap.xml` — from the registry.
+- `src/app/llms.txt/route.ts` → `/llms.txt` (llmstxt.org) — the brand, its
+  description, the registry's pages with their summaries, and the
+  `organization` facts. `force-static`: prerendered at build. The Payload kit
+  swaps it for one that reads the SEO global.
 - `src/app/manifest.ts` → `/manifest.webmanifest`.
+
+## Search engine verification
+
+`GOOGLE_SITE_VERIFICATION` / `BING_SITE_VERIFICATION` (the HTML-tag method's
+`content` value) → `siteConfig.verification` → `<meta name="google-site-verification">`
+/ `<meta name="msvalidate.01">` on every page through `generateMetadata`. Unset
+→ no tag. Verify both at launch and submit `/sitemap.xml` in each — Bing's
+index also feeds ChatGPT search and Copilot.
 
 ## Crawlers: the robot form, a static `/`, no hidden page
 
@@ -146,11 +207,32 @@ intro gate.
 
 ## Structured data (JSON-LD)
 
-`src/utils/seo/structured-data.ts` → `getSiteStructuredData()` builds an
-`Organization` + `WebSite` graph from `siteConfig`, rendered once by the root
-layout. Point `logo` at the brand's real mark once it exists. It also takes overrides
-(`name`, `legalName`, `description`, `logo`, `sameAs`) — the CMS passes the SEO
-global's Site defaults.
+`src/utils/seo/structured-data.ts` holds typed builders ([[utils]] lists them);
+`<JsonLd>` ([[components/common|common]]) renders a document.
+
+- **Site graph** — `getSiteStructuredData()`: `Organization` (or a
+  `LocalBusiness` subtype via `type`) + `WebSite`, from `siteConfig` and
+  `siteConfig.organization`, rendered once by the root layout. Point `logo` at
+  the brand's real mark once it exists. Overrides (`name`, `legalName`,
+  `description`, `logo`, `sameAs`, `type`) — the CMS passes the SEO global's
+  Site defaults.
+- **Page graph** — a view renders one `<JsonLd data={jsonLdGraph(…)} />`:
+  the breadcrumb (`getBreadcrumbStructuredData(path)`, from the registry) plus
+  `Article`, `Service` or `FAQPage` where the page really is one. Nodes point at
+  the Organization by `@id` rather than repeating it. `/privacy-policy` ships
+  the example.
+- **Check Google's supported-features gallery before chasing a rich result.**
+  FAQ rich results stopped in May 2026, HowTo in 2023, the sitelinks search box
+  in 2024. `FAQPage` still describes a visible FAQ for answer engines — never
+  questions the page doesn't show.
+- **Local facts** — `siteConfig.organization` also holds `openingHours`,
+  `geo`, `areaServed`, `priceRange`, `hasMap`. `areaServed` and `hasMap` go
+  out whenever set; hours, geo and price range only when `type` is a
+  `LocalBusiness` subtype (they aren't Organization properties). A business
+  with several locations gives each its page and
+  `getLocalBusinessStructuredData()` (own `@id`, `parentOrganization` → the
+  brand). Every value exactly as the Business Profile writes it — skill
+  `local-seo`.
 
 ## Bot detection
 

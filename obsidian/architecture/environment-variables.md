@@ -23,6 +23,8 @@ Rules for handling configuration and secrets.
 | `VERCEL_PROJECT_PRODUCTION_URL` | server-only (Vercel system) | The project's production domain, no scheme, set by Vercel at build time — the origin fallback. Not set by hand; for a local check: `VERCEL_PROJECT_PRODUCTION_URL=x.vercel.app next build`. |
 | `VERCEL_ENV` | server-only (Vercel system) | `production` / `preview` / `development`. A `production` build **fails** while `siteConfig` holds `TODO:` placeholders. |
 | `CONTACT_ENDPOINT` | server-only | Optional upstream the `/api/contact` route forwards leads to (CRM / webhook). When unset, submissions are logged server-side. See [[api-architecture]]. |
+| `GOOGLE_SITE_VERIFICATION` | server-only | Search Console's HTML-tag code (the `content` value). Renders `<meta name="google-site-verification">` on every page via `siteConfig.verification`. Optional. See [[seo-metadata]]. |
+| `BING_SITE_VERIFICATION` | server-only | Bing Webmaster Tools' code — renders `<meta name="msvalidate.01">`. Optional. |
 
 Documented in `.env.example` (committed). Validated by `src/env.ts` (zod):
 `publicEnv` for `NEXT_PUBLIC_*` (safe anywhere), `getServerEnv()` for

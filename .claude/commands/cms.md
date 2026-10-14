@@ -1,6 +1,6 @@
 ---
 description: Put a Payload admin on this site — every string editable, SEO per page, the site's look, analytics, an editor's guide
-argument-hint: [phase? — core | skin | seo | analytics | guide | prove]
+argument-hint: [phase? — core | skin | seo | blog | collection | analytics | guide | prove]
 ---
 
 Build (or continue) this site's CMS admin. Phase asked for: **$ARGUMENTS**
@@ -17,6 +17,8 @@ load it and follow it exactly:
 | 3 SEO | `payload-cms` §3 + `references/seo-global.md` | every route's `<head>`, JSON-LD, sitemap, robots, `/llms.txt` from the SEO global |
 | 4 Migrate | `payload-cms` §4 | types + migration committed, `/admin` first user |
 | 5 Skin | `payload-admin` §Skin | the admin wears the site's tokens; tour screenshots look right |
+| 4b Blog *(if asked)* | `payload-cms` + `references/blog.md` | `scaffold.sh blog`; `/blog` in ROUTES + SEO_PAGES, sitemap + llms wired, a renamed slug answers 308 |
+| 4c Data-driven pages *(if asked)* | `payload-cms` + `references/collection-pages.md` (+ `local-seo` for locations) | `scaffold.sh collection`, renamed to its segment; a thin page shows its reason and is `noindex` |
 | 6 Analytics *(ask first)* | `payload-analytics` | consent-gated beacon, view + card, privacy policy agrees |
 | 7 Guide *(last)* | `payload-admin` §Guide | `/admin/guide` with a screenshot per sidebar entry (`yarn qa:shots`) |
 | 8 Prove | `payload-cms` §8 | edit → site, blank → fallback, no DB → site up, upload → bucket, routes static, Lighthouse unchanged |
@@ -30,4 +32,4 @@ analytics, pointing local dev at a production database, any destructive migratio
 
 Finish with `yarn verify`, `yarn lint`, `yarn build`, and the vault pass
 (`cms-payload.md`, `tech-stack.md`, `environment-variables.md`, `changelog.md`,
-an ADR for any departure from the skill's decisions D1–D16).
+an ADR for any departure from the skill's decisions D1–D17).

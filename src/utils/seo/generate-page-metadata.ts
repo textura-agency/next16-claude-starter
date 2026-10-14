@@ -44,6 +44,15 @@ interface MetadataProps {
   noIndex?: boolean;
   /** `og:locale` — `language_REGION`. */
   locale?: string;
+  /**
+   * Multi-language pages only: hreflang code → path or URL for every language
+   * version, this one and `x-default` included — `routeLanguages(path)`
+   * (`src/utils/seo/hreflang.ts`) builds it from the route registry. Omitted →
+   * no hreflang links, as on a single-language site.
+   */
+  languages?: Record<string, string>;
+  /** `og:locale:alternate` — the other versions' locales (`de_DE`…). */
+  alternateLocales?: string[];
 }
 
 export function generateMetadata({
@@ -60,11 +69,14 @@ export function generateMetadata({
   ogImageSize = { width: 1200, height: 630 },
   noIndex = false,
   locale = siteConfig.locale,
+  languages,
+  alternateLocales,
 }: MetadataProps = {}): Metadata {
   // The `<title>`: the home title as is, a page title through the template
   // (or as given, when the CMS wrote the whole of it).
   const fullTitle = title ? (absoluteTitle ? title : `${title} · ${siteName}`) : siteConfig.title;
   const image = { url: ogImage, ...ogImageSize, alt: ogImageAlt };
+  const { verification } = siteConfig;
 
   return {
     // Resolves every relative URL below to an absolute one.
@@ -78,8 +90,10 @@ export function generateMetadata({
     authors: [{ name: author }],
     creator: author,
     publisher: author,
+    // Each language version is canonical to itself — never to another language.
     alternates: {
       canonical: url,
+      ...(languages ? { languages } : {}),
     },
     openGraph: {
       title: fullTitle,
@@ -90,6 +104,7 @@ export function generateMetadata({
       // mismatch. Replace the placeholder in public/.
       images: [image],
       locale,
+      ...(alternateLocales?.length ? { alternateLocale: alternateLocales } : {}),
       type: "website",
     },
     twitter: {
@@ -119,6 +134,15 @@ export function generateMetadata({
       index: !noIndex,
       follow: true,
     },
+    // Search Console / Bing Webmaster ownership — only the codes that are set.
+    ...(verification.google || verification.bing
+      ? {
+          verification: {
+            ...(verification.google ? { google: verification.google } : {}),
+            ...(verification.bing ? { other: { "msvalidate.01": verification.bing } } : {}),
+          },
+        }
+      : {}),
   };
 }
 

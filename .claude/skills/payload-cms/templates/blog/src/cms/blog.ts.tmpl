@@ -1,0 +1,331 @@
+// 📖 Docs: obsidian/backend/cms-payload.md
+/**
+ * The blog, read from Payload — posts, topics and authors, and everything
+ * search reads about them: each page's `<head>`, its JSON-LD graph, the
+ * sitemap's entries, the feed and the `/llms.txt` lines. One module, so the
+ * sitemap can't list a post the page marks `noindex`, and the feed can't
+ * summarise it differently from its meta description.
+ *
+ * Every read goes through `safely()` (`docs.ts`): no database → no posts, the
+ * error logged, the build and the rest of the site unaffected.
+ *
+ * PROJECT CONFIG: `BLOG` — the hub's path and the names the pages use. The hub
+ * (`/blog`) is a fixed route: it has an entry in `src/lib/routes.ts` and a tab
+ * in the SEO global (`seo-pages.ts`, name `blog`), like every other page.
+ */
+import "server-only";
+
+import type { Metadata } from "next";
+import { cache } from "react";
+import type { Where } from "payload";
+
+import type { Author, Post, Topic } from "@/payload-types";
+import { siteConfig } from "@/lib/site";
+import { generateMetadata } from "@/utils/seo/generate-page-metadata";
+import {
+  absoluteUrl,
+  getArticleStructuredData,
+  getPersonStructuredData,
+  jsonLdGraph,
+  type JsonLdNode,
+  type PersonInput,
+} from "@/utils/seo/structured-data";
+
+import { dayOf, docOf, imageOf, safely, trailFor, type Crumb } from "./docs";
+import { lexicalText } from "./lexical";
+
+export const BLOG = {
+  /** The hub's path — also the folder under `src/app/(site)/`. */
+  path: "/blog",
+  /** The hub's name in breadcrumbs — the registry entry's `label`. */
+  label: "Blog",
+  /** A topic page holds fewer posts than this → `noindex`, out of the sitemap. */
+  minTopicPosts: 2,
+  /** Posts in the feed and in `/llms.txt`. */
+  feedSize: 30,
+} as const;
+
+export const postPath = (slug: string) => `${BLOG.path}/${slug}`;
+export const topicPath = (slug: string) => `${BLOG.path}/topic/${slug}`;
+export const authorPath = (slug: string) => `${BLOG.path}/author/${slug}`;
+
+/** Internal links inside rich text → their addresses (`components/cms/rich-text.tsx`). */
+export const BLOG_HREFS = { posts: postPath };
+
+const PUBLISHED: Where = { _status: { equals: "published" } };
+
+/** Published posts matching `where`, newest first, with author, topics and cover read. */
+const listPosts = (label: string, where: Where = {}, limit = 0): Promise<Post[]> =>
+  safely(label, [], async (payload) => {
+    const { docs } = await payload.find({
+      collection: "posts",
+      where: { and: [PUBLISHED, where] },
+      sort: "-publishedAt",
+      depth: 1,
+      ...(limit > 0 ? { limit } : { pagination: false }),
+    });
+    return docs;
+  });
+
+/** Every published post — the hub lists them all, so none is an orphan. */
+export const getPosts = cache(() => listPosts("posts"));
+
+export const getPostsInTopic = cache((id: Topic["id"]) =>
+  listPosts(`posts in topic ${id}`, { topics: { in: [id] } }),
+);
+
+export const getPostsBy = cache((id: Author["id"]) =>
+  listPosts(`posts by author ${id}`, { author: { equals: id } }),
+);
+
+/** One published post by its slug, its relationships read two levels deep. */
+export const getPost = cache((slug: string) =>
+  safely<Post | null>(`post "${slug}"`, null, async (payload) => {
+    const { docs } = await payload.find({
+      collection: "posts",
+      where: { and: [PUBLISHED, { slug: { equals: slug } }] },
+      depth: 2,
+      limit: 1,
+    });
+    return docs[0] ?? null;
+  }),
+);
+
+export const getTopic = cache((slug: string) =>
+  safely<Topic | null>(`topic "${slug}"`, null, async (payload) => {
+    const { docs } = await payload.find({ collection: "topics", where: { slug: { equals: slug } }, limit: 1 });
+    return docs[0] ?? null;
+  }),
+);
+
+export const getAuthor = cache((slug: string) =>
+  safely<Author | null>(`author "${slug}"`, null, async (payload) => {
+    const { docs } = await payload.find({
+      collection: "authors",
+      where: { slug: { equals: slug } },
+      depth: 1,
+      limit: 1,
+    });
+    return docs[0] ?? null;
+  }),
+);
+
+type Routed = "posts" | "topics" | "authors";
+
+/**
+ * The current slug of a document that used to live at `slug` — the page
+ * answers with a permanent redirect there (`fields/slug.ts`).
+ */
+export const findMoved = (collection: Routed, slug: string) =>
+  safely<string | null>(`moved ${collection} "${slug}"`, null, async (payload) => {
+    const { docs } = await payload.find({
+      collection,
+      where: {
+        and: [
+          { "previousSlugs.slug": { equals: slug } },
+          ...(collection === "posts" ? [PUBLISHED] : []),
+        ],
+      },
+      depth: 0,
+      limit: 1,
+    });
+    return docs[0]?.slug ?? null;
+  });
+
+/** `generateStaticParams` for each route — prerendered at build, the rest on first visit. */
+export const getPostParams = async () => (await getPosts()).map(({ slug }) => ({ slug }));
+
+export const getTopicParams = () =>
+  safely("topic params", [] as { slug: string }[], async (payload) => {
+    const { docs } = await payload.find({ collection: "topics", depth: 0, pagination: false });
+    return docs.map(({ slug }) => ({ slug }));
+  });
+
+export const getAuthorParams = () =>
+  safely("author params", [] as { slug: string }[], async (payload) => {
+    const { docs } = await payload.find({ collection: "authors", depth: 0, pagination: false });
+    return docs.map(({ slug }) => ({ slug }));
+  });
+
+// ── What a post is, in search terms ────────────────────────────────────────
+
+/** A post's own canonical, when the editor credited another site with it. */
+const elsewhere = (post: Post): string | undefined => {
+  const canonical = post.meta?.canonical?.trim();
+  return canonical ? canonical : undefined;
+};
+
+/** In the sitemap, the feed and `/llms.txt`: not hidden, not someone else's page. */
+export const isIndexable = (post: Post): boolean => !post.meta?.noIndex && !elsewhere(post);
+
+/** The day the content last really changed — `revisedAt`, else `publishedAt`. */
+export const lastChanged = (post: Post): string =>
+  dayOf(post.revisedAt) ?? dayOf(post.publishedAt) ?? "";
+
+export const authorOf = (post: Post): Author | undefined => docOf<Author>(post.author);
+
+export const topicsOf = (post: Post): Topic[] =>
+  (post.topics ?? []).flatMap((topic) => docOf<Topic>(topic) ?? []);
+
+const personOf = (author: Author): PersonInput => ({
+  name: author.name,
+  url: authorPath(author.slug),
+  ...(author.role ? { jobTitle: author.role } : {}),
+  ...(imageOf(author.photo) ? { image: imageOf(author.photo)?.url } : {}),
+  sameAs: (author.sameAs ?? []).map(({ url }) => url),
+});
+
+/** Home → Blog → its first topic → the post: the visible trail and its JSON-LD. */
+export const postTrail = (post: Post) => {
+  const topic = topicsOf(post)[0];
+  const tail: Crumb[] = [
+    ...(topic ? [{ label: topic.name, path: topicPath(topic.slug) }] : []),
+    { label: post.title, path: postPath(post.slug) },
+  ];
+  return trailFor(BLOG.path, tail);
+};
+
+export const postMetadata = (post: Post): Metadata => {
+  const cover = imageOf(post.meta?.image) ?? imageOf(post.cover);
+  const author = authorOf(post);
+  const base = generateMetadata({
+    title: post.meta?.title?.trim() || post.title,
+    // The editor's search title is the whole <title>; the post's own title
+    // goes through the `· Brand` template.
+    absoluteTitle: Boolean(post.meta?.title?.trim()),
+    description: post.meta?.description?.trim() || post.excerpt,
+    url: elsewhere(post) ?? postPath(post.slug),
+    ...(cover
+      ? {
+          ogImage: cover.url,
+          ogImageAlt: cover.alt,
+          ...(cover.width && cover.height ? { ogImageSize: { width: cover.width, height: cover.height } } : {}),
+        }
+      : {}),
+    ...(author ? { author: author.name } : {}),
+    noIndex: Boolean(post.meta?.noIndex),
+  });
+  return {
+    ...base,
+    openGraph: {
+      ...base.openGraph,
+      type: "article",
+      publishedTime: post.publishedAt,
+      modifiedTime: post.revisedAt ?? post.publishedAt,
+      ...(author ? { authors: [absoluteUrl(authorPath(author.slug))] } : {}),
+      section: topicsOf(post)[0]?.name,
+    },
+  };
+};
+
+/** The post's JSON-LD: the article, signed and dated, and its breadcrumb. */
+export const postStructuredData = (post: Post): JsonLdNode => {
+  const author = authorOf(post);
+  const cover = imageOf(post.cover);
+  const article = getArticleStructuredData({
+    path: postPath(post.slug),
+    headline: post.title,
+    description: post.meta?.description?.trim() || post.excerpt,
+    image: cover?.url ?? siteConfig.ogImage,
+    datePublished: post.publishedAt,
+    ...(post.revisedAt ? { dateModified: post.revisedAt } : {}),
+    author: author ? personOf(author) : { name: siteConfig.author },
+  });
+  const topics = topicsOf(post).map((topic) => topic.name);
+  return jsonLdGraph(
+    {
+      ...article,
+      ...(topics.length > 0 ? { articleSection: topics[0], keywords: topics.join(", ") } : {}),
+      wordCount: lexicalText(post.body).split(/\s+/).filter(Boolean).length,
+    },
+    postTrail(post).node,
+  );
+};
+
+/** The three posts linked at the end: the editor's picks, else the newest in its first topic. */
+export const getRelated = async (post: Post): Promise<Post[]> => {
+  const picked = (post.related ?? []).flatMap((related) => docOf<Post>(related) ?? []);
+  if (picked.length > 0) return picked.filter((related) => related._status === "published");
+  const topic = topicsOf(post)[0];
+  const pool = topic ? await getPostsInTopic(topic.id) : await getPosts();
+  return pool.filter((candidate) => candidate.id !== post.id).slice(0, 3);
+};
+
+// ── Topic and author pages ─────────────────────────────────────────────────
+
+export const topicMetadata = (topic: Topic, postCount: number): Metadata =>
+  generateMetadata({
+    title: topic.name,
+    description: topic.intro,
+    url: topicPath(topic.slug),
+    // One post is not a hub — a thin page Google would rather not index.
+    noIndex: postCount < BLOG.minTopicPosts,
+  });
+
+export const topicTrail = (topic: Topic) =>
+  trailFor(BLOG.path, [{ label: topic.name, path: topicPath(topic.slug) }]);
+
+export const authorMetadata = (author: Author, postCount: number): Metadata => {
+  const photo = imageOf(author.photo);
+  return generateMetadata({
+    title: author.name,
+    description: author.bio?.trim() || `Articles by ${author.name}${author.role ? `, ${author.role}` : ""}.`,
+    url: authorPath(author.slug),
+    ...(photo ? { ogImage: photo.url, ogImageAlt: photo.alt } : {}),
+    noIndex: postCount === 0,
+  });
+};
+
+export const authorStructuredData = (author: Author): JsonLdNode =>
+  jsonLdGraph(
+    {
+      "@type": "ProfilePage",
+      "@id": `${absoluteUrl(authorPath(author.slug))}#page`,
+      url: absoluteUrl(authorPath(author.slug)),
+      mainEntity: getPersonStructuredData(personOf(author)),
+    },
+    trailFor(BLOG.path, [{ label: author.name, path: authorPath(author.slug) }]).node,
+  );
+
+// ── Sitemap, feed, /llms.txt ───────────────────────────────────────────────
+
+/**
+ * The blog's sitemap entries: every indexable post (its real `lastmod`),
+ * topics with enough posts to be a hub, authors with a post. The hub itself
+ * is in the registry and the SEO global like any fixed route.
+ */
+export const getBlogSitemap = async (): Promise<{ path: string; lastModified?: string }[]> => {
+  const posts = (await getPosts()).filter(isIndexable);
+  const perTopic = new Map<string, { count: number; last: string }>();
+  const perAuthor = new Map<string, string>();
+  for (const post of posts) {
+    for (const topic of topicsOf(post)) {
+      const seen = perTopic.get(topic.slug);
+      perTopic.set(topic.slug, {
+        count: (seen?.count ?? 0) + 1,
+        last: seen && seen.last > lastChanged(post) ? seen.last : lastChanged(post),
+      });
+    }
+    const author = authorOf(post);
+    if (author && (perAuthor.get(author.slug) ?? "") < lastChanged(post)) {
+      perAuthor.set(author.slug, lastChanged(post));
+    }
+  }
+  return [
+    ...posts.map((post) => ({ path: postPath(post.slug), lastModified: lastChanged(post) })),
+    ...[...perTopic]
+      .filter(([, topic]) => topic.count >= BLOG.minTopicPosts)
+      .map(([slug, topic]) => ({ path: topicPath(slug), lastModified: topic.last })),
+    ...[...perAuthor].map(([slug, last]) => ({ path: authorPath(slug), lastModified: last })),
+  ];
+};
+
+/** The newest indexable posts — the feed and `/llms.txt` read the same list. */
+export const getFeedPosts = async (): Promise<Post[]> =>
+  (await getPosts()).filter(isIndexable).slice(0, BLOG.feedSize);
+
+/** `/llms.txt`'s "Articles" section — a link and the summary per post. */
+export const getBlogLlmsLines = async (): Promise<string[]> =>
+  (await getFeedPosts()).map(
+    (post) => `- [${post.title}](${absoluteUrl(postPath(post.slug))}): ${post.excerpt}`,
+  );

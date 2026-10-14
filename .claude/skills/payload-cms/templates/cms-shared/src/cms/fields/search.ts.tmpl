@@ -1,0 +1,75 @@
+// 📖 Docs: obsidian/backend/cms-payload.md
+/**
+ * The "Search & sharing" tab every routed document carries — the same fields
+ * as a page tab in the SEO global (`cms/seo.ts`), placed in a `meta` group:
+ * a title and description with the SEO plugin's length bars and snippet
+ * preview, a share image, a canonical address and the noindex switch.
+ *
+ * All optional. Blank → built from the document itself (`cms/blog.ts`,
+ * `cms/entries.ts`): the title through the `· Brand` template, the excerpt or
+ * summary as the description, the cover as the share image.
+ *
+ * Shared by the blog and collection kits (`templates/cms-shared`, added with either).
+ */
+import type { Field } from "payload";
+import {
+  MetaDescriptionField,
+  MetaImageField,
+  MetaTitleField,
+  OverviewField,
+  PreviewField,
+} from "@payloadcms/plugin-seo/fields";
+
+export const searchFields = (): Field[] => [
+  {
+    name: "meta",
+    type: "group",
+    label: false,
+    fields: [
+      OverviewField({
+        titlePath: "meta.title",
+        descriptionPath: "meta.description",
+        imagePath: "meta.image",
+      }),
+      MetaTitleField({
+        overrides: {
+          label: "Search title",
+          admin: {
+            description:
+              "The whole <title> a search result shows, 50–60 characters, the words people search for first. Blank: the title above, followed by the brand.",
+          },
+        },
+      }),
+      MetaDescriptionField({
+        overrides: {
+          label: "Search description",
+          admin: { description: "100–150 characters on what the reader gets. Blank: the summary." },
+        },
+      }),
+      MetaImageField({
+        relationTo: "media",
+        overrides: {
+          label: "Share image",
+          admin: { description: "1200 × 630 for social cards. Blank: the cover image." },
+        },
+      }),
+      {
+        name: "canonical",
+        type: "text",
+        label: "Canonical address",
+        admin: {
+          description:
+            "Only when this text first appeared elsewhere (republished from another site): that page's full URL. Blank: this page's own address.",
+        },
+      },
+      {
+        name: "noIndex",
+        type: "checkbox",
+        label: "Hide from search engines (noindex)",
+        defaultValue: false,
+        admin: { description: "Also leaves it out of sitemap.xml, the feed and /llms.txt." },
+      },
+      PreviewField({ titlePath: "meta.title", descriptionPath: "meta.description" }),
+    ],
+  },
+];

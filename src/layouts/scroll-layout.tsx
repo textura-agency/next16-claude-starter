@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
 import Lenis from "lenis";
 import { usePathname } from "next/navigation";
 import { useScroll } from "@/hooks/smooth-scroll/use-scroll";
@@ -24,12 +24,13 @@ export function ScrollLayout({ children }: { children: React.ReactNode }) {
 
 function ScrollController() {
   const isEnableScroll = useScroll((state) => state.isEnableScroll);
-  const [hash, setHash] = useState<string>("");
   const [lenis, setLenis] = useScroll(
     useShallow((state) => [state.lenis, state.setLenis]),
   );
   const pathname = usePathname();
-  const savedPathname = useRef("");
+  // The section to land on, read from the address — derived, not stored, so
+  // it can't fall out of step with the route.
+  const hash = pathname.includes("#") ? (pathname.split("#").pop() ?? "") : "";
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -74,18 +75,6 @@ function ScrollController() {
       }, 300);
     }
   }, [lenis, hash]);
-
-  useEffect(() => {
-    if (savedPathname.current !== pathname) {
-      savedPathname.current = pathname;
-      if (pathname.includes("#")) {
-        const hash = pathname.split("#").pop();
-        if (hash) {
-          setHash(hash);
-        }
-      }
-    }
-  }, [pathname, setHash]);
 
   return null; // This component doesn't render anything visible
 }

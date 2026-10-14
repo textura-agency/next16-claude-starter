@@ -1,6 +1,6 @@
 ---
 tags: [meta, changelog]
-updated: 2026-10-10
+updated: 2026-10-14
 ---
 
 # Changelog
@@ -15,6 +15,74 @@ remembering. Routine commits do not need an entry.
 For *why* the conventions are what they are, see [[decisions-log]].
 
 ---
+
+## 2026-10-14
+
+**Lint is a real check again (ADR-0030).** Eight rules switched off in
+`eslint.config.mjs` hid 63 problems (14 `any`, unused code, unexplained
+`@ts-expect-error`, a `@ts-nocheck`, setState in effects). All fixed — the
+animation engine with sign-off, types only (plus `Handle` honouring `tag`) —
+and the rules restored; `yarn lint --max-warnings 0` passes on the starter
+and on every Payload kit. `verify.sh` flags the engine diff until committed.
+
+**SEO, part 2: content at scale, local, languages, and growth after launch.**
+
+- **Payload kits `blog` and `collection`** (`scaffold.sh blog|collection`, both
+  bringing `templates/cms-shared`). Blog: posts / topics / authors,
+  `/blog/{,<slug>,topic/<slug>,author/<slug>,feed.xml}`, `BlogPosting` +
+  `Person` + breadcrumb, `revisedAt` as the only `lastmod`, old slugs → 308,
+  thin topics `noindex`. Collection: one template for many pages (locations,
+  services…), a quality bar (own words + facts) deciding indexing with the
+  reason in the admin, `Service` / `LocalBusiness` / `FAQPage` by kind,
+  group links. Verified against a seeded Postgres (Payload 3.89, Next 16.3.7):
+  types / lint / build clean, every route ● SSG, Lighthouse A11y / BP / SEO
+  100. References: `payload-cms/references/{blog,collection-pages}.md`;
+  decision D17; `/cms` phases 4b / 4c.
+- **Local SEO** — skill `local-seo`; `siteConfig.organization` gains
+  `openingHours`, `geo`, `areaServed`, `priceRange`, `hasMap`;
+  `getLocalBusinessStructuredData()` per location. Bare-starter output unchanged.
+- **hreflang (opt-in)** — skill `i18n-seo`; `ROUTES[].alternates`,
+  `src/utils/seo/hreflang.ts` (an invalid code fails the build),
+  `generateMetadata({ languages, alternateLocales })`, sitemap alternates;
+  `qa:seo` FAILs non-reciprocal / invalid / relative hreflang and WARNs on a
+  missing self-reference or x-default, `<html lang>` mismatch, a
+  cross-language canonical.
+- **`/seo-grow`** — skill + command + `yarn seo:grow`
+  (`tools/qa/gsc-grow.mjs`): a Search Console export → the site's own CTR
+  curve, striking distance, low CTR, zero-click, decliners, cannibalisation.
+- `qa:seo`: `/llms.txt` must list every *registry* page; CMS collection pages
+  may be a curated subset (it is a map, not a dump).
+
+
+**SEO: one route registry, `/llms.txt`, explicit AI-crawler policy, page
+schema, and a crawler that checks values.** After a gap analysis against
+coreyhaines31/marketingskills (its `seo-audit`, `ai-seo`, `schema` skills):
+
+- `src/lib/routes.ts` (`ROUTES`) lists every public page; `sitemap.xml`,
+  the new `/llms.txt` (`src/app/llms.txt/route.ts`, prerendered) and the
+  breadcrumb JSON-LD read it. `verify.sh` FAILs on a `page.tsx` without an
+  entry. The sitemap no longer stamps `lastModified: new Date()` — `<lastmod>`
+  only from a route's real `updated` date (new WARN in `verify.sh`).
+- `robots.ts` writes a named group per AI crawler, grouped by purpose
+  (`search` / `userFetch` / `training`) and switched by
+  `siteConfig.aiCrawlers` (defaults: all allowed — same behaviour as before,
+  now stated).
+- `siteConfig.organization` (founding date, contact, address, `sameAs`) feeds
+  the Organization JSON-LD and `/llms.txt`; `siteConfig.verification` from the
+  new env vars `GOOGLE_SITE_VERIFICATION` / `BING_SITE_VERIFICATION`.
+- `structured-data.ts` gained typed builders (Breadcrumb, Article/BlogPosting,
+  Service, FAQPage, Person, LocalBusiness via `type`) and `jsonLdGraph()`;
+  `<JsonLd>` (`src/components/common/json-ld.tsx`) renders them with `<`
+  escaped. `/privacy-policy` carries a breadcrumb.
+- `yarn qa:seo` (`tools/qa/seo-crawl.mjs`) crawls the served HTML as people and
+  as Googlebot: titles, descriptions, canonicals, h1, JSON-LD, broken links,
+  orphans, depth, sitemap/llms.txt agreement, robot-form parity. In `/ship`.
+- Skills corrected: `schema-markup` no longer sells FAQ rich results (Google
+  stopped showing them 7 May 2026; HowTo 2023; sitelinks search box 2024);
+  `aeo-visibility` covers user-triggered fetchers, CDN/WAF blocks, measuring
+  citation *rates* over repeated runs and Google's own AI-features stance;
+  `seo-audit` adds the new-page findability checklist and the post-launch
+  striking-distance / CTR pass; the auditor treats fetched pages as untrusted.
 
 ## 2026-10-10
 

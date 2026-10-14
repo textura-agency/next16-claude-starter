@@ -1,0 +1,88 @@
+// 📖 Docs: obsidian/backend/cms-payload.md
+/**
+ * The blog's hub — `/blog`. Its topics, then every published post, newest
+ * first: every post is one link from the hub, so none is an orphan and none
+ * is more than two clicks from the home page (link `/blog` from the header or
+ * the footer). Past ~60 posts, split the list into `/blog/page/<n>` or lean on
+ * the topic pages — a hub of hundreds of links dilutes each one.
+ *
+ * Its `<head>` is the SEO global's `blog` tab (add it to `seo-pages.ts`), plus
+ * the feed's autodiscovery link.
+ */
+import type { Metadata } from "next";
+import Link from "next/link";
+
+import { BLOG, getPosts, topicPath, topicsOf } from "@/cms/blog";
+import { getPageMetadata } from "@/cms/content";
+import { JsonLd } from "@/components/common/json-ld";
+import { BLOG_COPY } from "@/data/mocks/blog";
+import { getBreadcrumbStructuredData, jsonLdGraph } from "@/utils/seo/structured-data";
+
+import { PostCard } from "./post-card";
+
+export const getBlogMetadata = async (): Promise<Metadata> => {
+  const metadata = await getPageMetadata("blog");
+  return {
+    ...metadata,
+    alternates: {
+      ...metadata.alternates,
+      types: { "application/rss+xml": `${BLOG.path}/feed.xml` },
+    },
+  };
+};
+
+export const BlogIndexView = async () => {
+  const posts = await getPosts();
+  // Topics that hold a post, in the order their first post appears.
+  const topics = [...new Map(posts.flatMap(topicsOf).map((topic) => [topic.slug, topic])).values()];
+  const breadcrumb = getBreadcrumbStructuredData(BLOG.path);
+
+  return (
+    <div className="min-h-lvh w-full bg-background font-sans text-foreground">
+      {breadcrumb && <JsonLd data={jsonLdGraph(breadcrumb)} />}
+      <header className="mx-auto w-full max-w-[64rem] px-4 pb-10 pt-24 md:px-6 md:pt-28 xl:px-8">
+        <h1 className="text-4xl font-medium leading-display">{BLOG_COPY.heading}</h1>
+        <p className="mt-4 max-w-[40rem] leading-relaxed opacity-80">{BLOG_COPY.intro}</p>
+      </header>
+
+      <main className="mx-auto w-full max-w-[64rem] px-4 pb-24 md:px-6 xl:px-8">
+        {topics.length > 0 && (
+          <section aria-labelledby="blog-topics" className="mb-12">
+            <h2 id="blog-topics" className="text-2xl font-medium leading-display">
+              {BLOG_COPY.topicsHeading}
+            </h2>
+            <ul className="mt-4 flex flex-wrap gap-3">
+              {topics.map((topic) => (
+                <li key={topic.slug}>
+                  <Link
+                    href={topicPath(topic.slug)}
+                    className="underline underline-offset-4 transition-opacity duration-[var(--duration-fast)] ease-entrance hover:opacity-70 focus-visible:opacity-70"
+                  >
+                    {topic.name}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        <section aria-labelledby="blog-posts">
+          <h2 id="blog-posts" className="text-2xl font-medium leading-display">
+            {BLOG_COPY.postsHeading}
+          </h2>
+          {posts.length === 0 ? (
+            <p className="mt-4 opacity-80">{BLOG_COPY.empty}</p>
+          ) : (
+            <ul className="mt-6 grid gap-10 md:grid-cols-2">
+              {posts.map((post) => (
+                <li key={post.id}>
+                  <PostCard post={post} level="h3" />
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </main>
+    </div>
+  );
+};

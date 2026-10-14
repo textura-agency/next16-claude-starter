@@ -87,7 +87,6 @@ export function useProgressTrigger({
   }, [active]);
 
   useLoopInView(
-    // @ts-expect-error
     trigger || elementRef,
     () => {
       if (typeof window === "undefined") return;

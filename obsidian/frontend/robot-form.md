@@ -97,6 +97,14 @@ copy must not sit under a `hidden` ancestor (that was the empty
 UI rendered open, text under overlays and screens that hide themselves by their
 own motion are where resting forms go wrong.
 
+## More than one language
+
+The language comes from the URL, never from a header in a page. The proxy may
+send a *person* on the bare `/` to their language, but **never redirects a
+bot by language** (Googlebot sends no `Accept-Language` and crawls from the
+US — every version must be reachable as linked). The robot form exists per
+language: `/<lang>` → `/<lang>/robot-view`. Sketch: skill `i18n-seo`.
+
 ## Limits
 
 react-spring renders its start values into the server HTML for any component

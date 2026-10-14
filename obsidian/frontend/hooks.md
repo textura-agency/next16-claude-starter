@@ -16,7 +16,7 @@ components — don't call them directly unless extending the engine.
 |------|------|------|
 | `useInViewRef` | `use-in-view-ref.ts` | IntersectionObserver ref for viewport detection |
 | `useDynamicInView` | `use-dynamic-in-view.ts` | in-view detection with dynamic targets |
-| `useLoopInView` | `use-loop-in-view.ts` | in-view tied to a render loop |
+| `useLoopInView` | `use-loop-in-view.ts` | in-view tied to a render loop — takes any `RefObject<Element \| null>` |
 | `useProgressTrigger` | `use-progress-trigger.ts` | scroll → 0–1 progress (powers `<SpringTrigger>` / `<ProgressTrigger>`); returns `progress` as a `RefObject<number>` — read `.current` |
 | `useSpringTrigger` | `use-spring-trigger.ts` | scroll-driven spring logic |
 | `useLoop` | `use-render-loop.ts` | subscribes a callback to the shared rAF ticker (`src/lib/animation/ticker.ts`) |

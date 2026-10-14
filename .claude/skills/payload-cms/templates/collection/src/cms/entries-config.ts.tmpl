@@ -1,0 +1,55 @@
+// 📖 Docs: .claude/skills/payload-cms/references/collection-pages.md
+/**
+ * The set of data-driven pages — what it is called, where it lives, and the
+ * bar a page must clear to be indexed. Plain values and one pure function, no
+ * Payload: the collection's fields (`collections/entries.ts`) and the site's
+ * reads (`entries.ts`) apply the same rule.
+ *
+ * PROJECT CONFIG: rename for what the pages are — `path: "/locations"`,
+ * `label: "Locations"`, `singular: "Location"`, `defaultKind: "location"` —
+ * and move `src/app/(site)/entries/` to the same segment. The collection's
+ * slug stays `entries` (it is a table name, never shown).
+ */
+import { wordCount } from "./lexical";
+
+export const ENTRIES = {
+  /** The hub's path — also the folder under `src/app/(site)/`. */
+  path: "/entries",
+  /** The hub's name — the breadcrumb, the sidebar group, the registry `label`. */
+  label: "Entries",
+  singular: "Entry",
+  /** What a new page is — `page`, `service` or `location`. */
+  defaultKind: "page" as "page" | "service" | "location",
+  /**
+   * The bar for indexing — below either, the page is `noindex` and out of the
+   * sitemap. Its own words in the body (the summary doesn't count — it is the
+   * sentence most likely to be templated), and facts that differ per page.
+   * Raise them for a set where pages compete for close queries.
+   */
+  minWords: 150,
+  minFacts: 3,
+} as const;
+
+export interface Quality {
+  indexable: boolean;
+  /** Why it is held back, in the editor's words. */
+  reasons: string[];
+}
+
+interface QualityInput {
+  body?: unknown;
+  facts?: unknown;
+  meta?: { noIndex?: boolean | null; canonical?: string | null } | null;
+}
+
+/** Whether a page clears the bar — and, when it doesn't, what is missing. */
+export const qualityOf = (entry: QualityInput): Quality => {
+  const reasons: string[] = [];
+  const words = wordCount(entry.body);
+  const facts = Array.isArray(entry.facts) ? entry.facts.length : 0;
+  if (entry.meta?.noIndex) reasons.push("set to noindex");
+  if (entry.meta?.canonical?.trim()) reasons.push("credits another page as canonical");
+  if (words < ENTRIES.minWords) reasons.push(`${words} of ${ENTRIES.minWords} words in the body`);
+  if (facts < ENTRIES.minFacts) reasons.push(`${facts} of ${ENTRIES.minFacts} facts`);
+  return { indexable: reasons.length === 0, reasons };
+};

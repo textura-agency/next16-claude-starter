@@ -1,0 +1,91 @@
+// 📖 Docs: obsidian/backend/cms-payload.md
+/**
+ * A saved Lexical document as the page's own markup — a Server Component, no
+ * motion, nothing hydrated. Payload's converter walks the nodes; three are
+ * overridden for search:
+ *
+ * - `<h2>` gets the anchor `headingsOf()` lists, so a contents list and a
+ *   shared `#section` link land on the heading (and Google can show a
+ *   "jump to" link). The page owns the `<h1>`: the editor offers h2–h4 only.
+ * - an internal link (to a post, an entry) becomes that document's address,
+ *   from `hrefs` — internal links with descriptive anchors are how the
+ *   cluster's pages pass weight to each other.
+ * - an inline image is `next/image`: lazy, sized, a srcset — Payload's default
+ *   is the full-size file, eager, on every phone.
+ *
+ * Shared by the blog and collection kits (`templates/cms-shared`, added with either).
+ */
+import Image from "next/image";
+import type {
+  DefaultNodeTypes,
+  SerializedHeadingNode,
+  SerializedLinkNode,
+  SerializedUploadNode,
+} from "@payloadcms/richtext-lexical";
+import {
+  LinkJSXConverter,
+  RichText as LexicalRichText,
+  type JSXConvertersFunction,
+} from "@payloadcms/richtext-lexical/react";
+import type { SerializedEditorState } from "@payloadcms/richtext-lexical/lexical";
+
+import { headingIds, nodeText } from "@/cms/lexical";
+import { imageOf } from "@/cms/docs";
+
+/** Collection slug → the address of one of its documents, from its slug. */
+export type DocHrefs = Partial<Record<string, (slug: string) => string>>;
+
+interface RichTextProps {
+  data: SerializedEditorState | null | undefined;
+  hrefs?: DocHrefs;
+  className?: string;
+}
+
+const hrefFor = (hrefs: DocHrefs, { fields }: SerializedLinkNode): string => {
+  const doc = fields.doc;
+  if (!doc) return "/";
+  const slug =
+    typeof doc.value === "object" && typeof doc.value.slug === "string" ? doc.value.slug : undefined;
+  const toHref = hrefs[doc.relationTo];
+  // Not populated (depth too low) or a collection with no page: the home page,
+  // never a broken address.
+  return slug && toHref ? toHref(slug) : "/";
+};
+
+export const RichText = ({ data, hrefs = {}, className }: RichTextProps) => {
+  if (!data) return null;
+  // One allocator per document, so ids match `headingsOf(data)` exactly.
+  const nextId = headingIds();
+
+  const converters: JSXConvertersFunction<DefaultNodeTypes> = ({ defaultConverters }) => ({
+    ...defaultConverters,
+    ...LinkJSXConverter({ internalDocToHref: ({ linkNode }) => hrefFor(hrefs, linkNode) }),
+    heading: ({ node, nodesToJSX, parent }) => {
+      const heading = node as SerializedHeadingNode;
+      const Tag = heading.tag;
+      const children = nodesToJSX({ nodes: heading.children });
+      if (Tag !== "h2" || parent?.type !== "root") return <Tag>{children}</Tag>;
+      return (
+        <Tag id={nextId(nodeText(heading).trim())} className="scroll-mt-24">
+          {children}
+        </Tag>
+      );
+    },
+    upload: ({ node }) => {
+      const image = imageOf((node as SerializedUploadNode).value);
+      if (!image?.width || !image.height) return null;
+      return (
+        <Image
+          src={image.url}
+          alt={image.alt}
+          width={image.width}
+          height={image.height}
+          sizes="(min-width: 48rem) 48rem, 100vw"
+          className="h-auto w-full"
+        />
+      );
+    },
+  });
+
+  return <LexicalRichText data={data} converters={converters} className={className} />;
+};

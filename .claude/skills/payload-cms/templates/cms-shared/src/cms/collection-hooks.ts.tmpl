@@ -1,0 +1,30 @@
+// 📖 Docs: obsidian/backend/cms-payload.md
+/**
+ * A collection save shows on the site at once — the same rule as the globals
+ * (`globals.ts` → `revalidate`, decision D11). Routes stay static; a save or a
+ * delete drops the cache, and the next request re-renders the post, its lists,
+ * the sitemap, the feed and `/llms.txt`.
+ *
+ * Shared by the blog and collection kits (`templates/cms-shared`, added with either).
+ */
+import { revalidatePath } from "next/cache";
+import type { CollectionAfterChangeHook, CollectionAfterDeleteHook } from "payload";
+
+const dropCache = (): void => {
+  try {
+    revalidatePath("/", "layout");
+  } catch {
+    // Saved outside a Next request — a seed, a script or a migration. There is
+    // no cache to drop there; the next build reads fresh.
+  }
+};
+
+export const revalidateOnChange: CollectionAfterChangeHook = ({ doc }) => {
+  dropCache();
+  return doc;
+};
+
+export const revalidateOnDelete: CollectionAfterDeleteHook = ({ doc }) => {
+  dropCache();
+  return doc;
+};

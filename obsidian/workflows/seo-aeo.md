@@ -1,6 +1,6 @@
 ---
 tags: [workflow, seo, stable]
-updated: 2026-10-06
+updated: 2026-10-14
 ---
 
 # Workflow — SEO & AEO
@@ -9,7 +9,7 @@ updated: 2026-10-06
 sitemap, JSON-LD helpers). This note covers the *practice*: auditing, structuring
 content, and being citable by answer engines. Skills: `seo-audit`,
 `schema-markup`, `aeo-visibility`. Command: `/seo`. Agent: `seo-auditor`.
-ADR: [[decisions-log]] ADR-0021.
+ADR: [[decisions-log]] ADR-0021, ADR-0028.
 
 ## Order of work
 
@@ -27,12 +27,25 @@ crawled is worth nothing, so the audit always runs in this order:
    [[optimize-load]] (laptop, tablet and mobile, medians) rather than a single run
 6. **AEO** — llms.txt, crawler policy, entity consistency
 
-### The failure this project is most prone to
+### Measure it — `yarn qa:seo`
 
-`src/app/sitemap.ts` is a hand-maintained array. Adding a route without adding a
-sitemap entry is the single most common miss here — cross-check
-`find src/app -name 'page.tsx'` against it during any audit, and add the entry in
-the same change as the route ([[new-page]] step 2).
+Lighthouse's SEO score checks one page for the *presence* of tags.
+`tools/qa/seo-crawl.mjs` reads the whole site the way a crawler does (served
+HTML, no JS) and checks the *values*: robots.txt / sitemap / llms.txt agree and
+name the real origin; every sitemap page 200 and indexable; unique, filled
+titles ≤ 60 and descriptions 70–160; a self-referencing canonical; exactly one
+`<h1>`; JSON-LD that parses; no internal link that 404s; no orphan; ≤ 3 clicks
+deep; and the robot form (Googlebot) carrying the same title, description,
+canonical, h1 and JSON-LD as the people form. Run it on the build and on the
+deploy — zero FAILs is the bar ([[ship]]).
+
+### The failure this project was most prone to
+
+A hand-kept `sitemap.ts` array: routes added without an entry, and
+`lastModified: new Date()` on every page every deploy. The sitemap, `/llms.txt`
+and the breadcrumbs now read **one registry** (`src/lib/routes.ts`) and
+`verify.sh` FAILs on a page without an entry ([[seo-metadata]] → The route
+registry, [[new-page]] step 11).
 
 ## AEO — being quoted, not just ranked
 
@@ -45,14 +58,18 @@ consistency of facts about an entity across the whole web. Practically:
   context; a sentence naming the subject survives extraction.
 - **Specifics** — numbers, dates, named methods. Vague marketing copy is unquotable.
 - **Comparison, definition, pricing and genuine FAQ pages** punch above their weight.
-- **`/llms.txt`** served from a Route Handler so it tracks real routes.
+- **`/llms.txt`** — shipped: `src/app/llms.txt/route.ts`, from the route
+  registry and `siteConfig.organization`, so it tracks real routes and facts.
 - **Entity consistency** across site, JSON-LD, llms.txt and third-party profiles.
 
 > [!important] Crawler policy is the user's decision
 > "Be cited by AI" and "don't train on my content" are different goals served by
 > different bots — training crawlers (`GPTBot`, `ClaudeBot`, `CCBot`,
-> `Google-Extended`) versus search/citation crawlers (`OAI-SearchBot`,
-> `Claude-SearchBot`, `PerplexityBot`). Ask before editing `robots.ts`.
+> `Google-Extended`), search/citation crawlers (`OAI-SearchBot`,
+> `Claude-SearchBot`, `PerplexityBot`) and user-triggered fetchers
+> (`ChatGPT-User`, `Claude-User`, `Perplexity-User`). `siteConfig.aiCrawlers`
+> holds one switch per purpose and `robots.ts` names every crawler — ask before
+> changing it, and check the CDN/WAF isn't blocking them on its own.
 
 ## What production taught
 
@@ -83,11 +100,43 @@ Measured or found on 50+ sites built from this starter ([[fix-catalog]] §8):
   title (≤ 60 chars), description from the site's copy, no placeholder handle —
   `yarn qa:brand`.
 
+## Content at scale — the Payload kits
+
+Where sites win long-tail search, and where thin, templated or orphaned pages
+lose it. Both kits are in `payload-cms` (`scaffold.sh blog` / `collection`):
+
+- **Blog** — posts / topics / authors at `/blog`: `BlogPosting` signed by a
+  real `Person` with an author page, topic hubs (`noindex` until they hold 2
+  posts), `revisedAt` as the only `lastmod`, old slugs → 308, `<h2>` anchors
+  with a contents list, RSS, every post linked from the hub.
+- **Data-driven pages** — one template, many pages (locations, services,
+  integrations): a **quality bar** (own words + per-page facts) decides
+  indexing, the admin says why a page is held back; `Service` /
+  `LocalBusiness` / `FAQPage` by kind; "More in <group>" links so the set
+  ranks as a set; maps linked, never embedded.
+
+## Local, languages, and after launch
+
+- **Local** — skill `local-seo`: the Google Business Profile is the main lever;
+  NAP from `siteConfig.organization` only (hours, geo, area served, price
+  range, map); one real page per location, never city-swapped copies.
+- **Languages** — skill `i18n-seo`: subdirectories, `app/[lang]` with static
+  params, the language from the URL (never `headers()`), bots never redirected
+  by language, hreflang from `ROUTES[].alternates` (reciprocal, self, x-default;
+  an invalid code fails the build), `yarn qa:seo` checks it served.
+- **After launch** — `/seo-grow` with a Search Console export: striking
+  distance, low CTR, decliners, cannibalisation → one change set per page,
+  logged, re-measured on the same window 4–6 weeks later. **No win is reported
+  without the comparison export.**
+
 ## What this project already has
 
-`siteConfig` as the single source of truth (origin with the Vercel fallback),
-`generateMetadata`/`generateViewport`, `robots.ts`, `sitemap.ts`, `Organization` +
-`WebSite` JSON-LD, the robot form behind `src/proxy.ts`, and an animation system
+`siteConfig` as the single source of truth (origin with the Vercel fallback,
+organisation facts, AI-crawler policy, verification codes), the route registry
+feeding `sitemap.ts`, `/llms.txt` and breadcrumbs, `generateMetadata`/`generateViewport`,
+`robots.ts` with a named group per AI crawler, typed JSON-LD builders
+(Organization/LocalBusiness, WebSite, BreadcrumbList, Article, Service, FAQPage,
+Person, LocalBusiness per location) rendered by `<JsonLd>`, opt-in hreflang, `yarn qa:seo`, `yarn seo:grow`, the robot form behind `src/proxy.ts`, and an animation system
 that only animates opacity/transform — so revealed content is in the DOM for
 crawlers regardless. Keep it that way: branch on the robot form through the proxy
 and `useMotionOff()`, never with `await isBot()` in a page, which costs static

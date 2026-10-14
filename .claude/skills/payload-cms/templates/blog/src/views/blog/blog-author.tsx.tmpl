@@ -1,0 +1,74 @@
+// 📖 Docs: obsidian/backend/cms-payload.md
+/**
+ * An author — `/blog/author/<slug>`: who they are and everything they wrote.
+ * The page every byline links to, and the `url` of the `Person` in each
+ * post's JSON-LD; it carries a `ProfilePage` graph of its own. An author with
+ * no published post is `noindex` and out of the sitemap.
+ */
+import type { Metadata } from "next";
+import Image from "next/image";
+import { notFound, permanentRedirect } from "next/navigation";
+
+import {
+  authorMetadata,
+  authorPath,
+  authorStructuredData,
+  BLOG,
+  findMoved,
+  getAuthor,
+  getAuthorParams,
+  getPostsBy,
+} from "@/cms/blog";
+import { imageOf, trailFor } from "@/cms/docs";
+import { JsonLd } from "@/components/common/json-ld";
+import { BLOG_COPY } from "@/data/mocks/blog";
+
+import { Archive } from "./archive";
+
+export const getAuthorStaticParams = getAuthorParams;
+
+export const getAuthorPageMetadata = async (slug: string): Promise<Metadata> => {
+  const author = await getAuthor(slug);
+  if (!author) return {};
+  return authorMetadata(author, (await getPostsBy(author.id)).length);
+};
+
+export const BlogAuthorView = async ({ slug }: { slug: string }) => {
+  const author = await getAuthor(slug);
+  if (!author) {
+    const moved = await findMoved("authors", slug);
+    if (moved) permanentRedirect(authorPath(moved));
+    notFound();
+  }
+  const posts = await getPostsBy(author.id);
+  const photo = imageOf(author.photo);
+  const { crumbs } = trailFor(BLOG.path, [{ label: author.name, path: authorPath(author.slug) }]);
+
+  return (
+    <Archive
+      crumbs={crumbs}
+      heading={author.name}
+      intro={
+        <div className="mt-4 flex max-w-[40rem] gap-4">
+          {photo?.width && photo.height ? (
+            <Image
+              src={photo.url}
+              alt={photo.alt}
+              width={96}
+              height={96}
+              priority
+              className="size-24 shrink-0 rounded-full object-cover"
+            />
+          ) : null}
+          <div>
+            {author.role ? <p className="font-medium">{author.role}</p> : null}
+            {author.bio ? <p className="mt-2 leading-relaxed opacity-80">{author.bio}</p> : null}
+          </div>
+        </div>
+      }
+      listHeading={`${BLOG_COPY.moreBy} ${author.name}`}
+      posts={posts}
+      jsonLd={<JsonLd data={authorStructuredData(author)} />}
+    />
+  );
+};

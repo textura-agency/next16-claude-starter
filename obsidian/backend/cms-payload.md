@@ -83,6 +83,33 @@ buttons and tabs, calm labels, nothing merging, hover = colour only, **no added
 motion**. Wordmark on login, favicon in the nav, a welcome card, rows named by
 their copy, Settings last. Skill: `payload-admin`.
 
+## Blog (optional kit)
+
+`scaffold.sh blog` — Posts (drafts → publish), Topics, Authors (sidebar group
+*Blog*) and `/blog`, `/blog/<slug>`, `/blog/topic/<slug>`,
+`/blog/author/<slug>`, `/blog/feed.xml`. One module (`cms/blog.ts`) builds
+every page's metadata, JSON-LD, sitemap entries, feed and `/llms.txt` lines,
+so they can't disagree. `revisedAt` (set by hand) is the only `lastmod`; old
+slugs answer 308; thin topic pages and authors without a post are `noindex`.
+Playbook: `payload-cms/references/blog.md`.
+
+## Data-driven pages (optional kit)
+
+`scaffold.sh collection` — one `entries` collection, renamed per project
+(`/locations`, `/services`…), one template, many pages. Facts (label/value),
+the page's own body, questions; `kind` picks `Service` / `LocalBusiness` /
+plain. A **quality bar** (`ENTRIES.minWords`, `minFacts`) decides indexing —
+a page below it is `noindex`, out of the sitemap and `/llms.txt`, and the
+admin's *Indexing* readout says why. Playbook:
+`payload-cms/references/collection-pages.md`.
+
+Both bring `cms-shared`: slug + `previousSlugs` (redirects), the *Search &
+sharing* tab (SEO plugin fields + canonical + noindex), the Lexical renderer
+(`<h2>` anchors, internal links by document, `next/image`), visible
+breadcrumbs, and `safely()` reads (no database → empty, never a broken
+build). Verified 2026-10-14 against a seeded Postgres: all routes ● SSG,
+308 on a renamed slug, Lighthouse A11y / BP / SEO 100.
+
 ## Analytics (optional kit)
 
 Consent-gated, cookieless, self-hosted: `/api/track` writes `page-views`

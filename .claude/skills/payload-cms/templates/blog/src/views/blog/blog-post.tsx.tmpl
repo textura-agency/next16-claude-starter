@@ -1,0 +1,181 @@
+// 📖 Docs: obsidian/backend/cms-payload.md
+/**
+ * One post — `/blog/<slug>`. Prerendered for every published post at build;
+ * a post published later renders on its first visit and is cached (a save
+ * drops the cache, `collection-hooks.ts`). An old slug answers 308 to the new
+ * address; an unknown one is a real 404.
+ *
+ * What the page carries for search, in reading order: a visible breadcrumb,
+ * one `<h1>` (the title), the byline with real `<time>`s (published and, when
+ * revised, updated), the cover with alt text, a contents list of the `<h2>`s
+ * (anchors match), the body, the author box (a link to their page), and three
+ * related posts — plus one JSON-LD graph: the BlogPosting and its breadcrumb.
+ * No motion: an article is read. The robot form needs nothing extra here.
+ */
+import type { Metadata } from "next";
+import Image from "next/image";
+import Link from "next/link";
+import { notFound, permanentRedirect } from "next/navigation";
+
+import {
+  authorOf,
+  authorPath,
+  BLOG_HREFS,
+  findMoved,
+  getPost,
+  getPostParams,
+  getRelated,
+  lastChanged,
+  postMetadata,
+  postPath,
+  postStructuredData,
+  postTrail,
+} from "@/cms/blog";
+import { dayOf, imageOf } from "@/cms/docs";
+import { headingsOf, readingMinutes } from "@/cms/lexical";
+import { Breadcrumbs } from "@/components/cms/breadcrumbs";
+import { RichText } from "@/components/cms/rich-text";
+import { JsonLd } from "@/components/common/json-ld";
+import { BLOG_COPY } from "@/data/mocks/blog";
+
+import { formatDay } from "./format";
+import { PostCard } from "./post-card";
+
+export const getPostStaticParams = getPostParams;
+
+export const getPostPageMetadata = async (slug: string): Promise<Metadata> => {
+  const post = await getPost(slug);
+  return post ? postMetadata(post) : {};
+};
+
+const linkClass =
+  "underline underline-offset-4 transition-opacity duration-[var(--duration-fast)] ease-entrance hover:opacity-70 focus-visible:opacity-70";
+
+export const BlogPostView = async ({ slug }: { slug: string }) => {
+  const post = await getPost(slug);
+  if (!post) {
+    const moved = await findMoved("posts", slug);
+    if (moved) permanentRedirect(postPath(moved));
+    notFound();
+  }
+
+  const related = await getRelated(post);
+  const author = authorOf(post);
+  const photo = imageOf(author?.photo);
+  const cover = imageOf(post.cover);
+  const contents = headingsOf(post.body);
+  const revised = dayOf(post.revisedAt);
+
+  return (
+    <div className="min-h-lvh w-full bg-background font-sans text-foreground">
+      <JsonLd data={postStructuredData(post)} />
+      <article>
+        <header className="mx-auto w-full max-w-[48rem] px-4 pb-8 pt-24 md:px-6 md:pt-28 xl:px-8">
+          <Breadcrumbs crumbs={postTrail(post).crumbs} label={BLOG_COPY.breadcrumb} />
+          <h1 className="mt-6 text-4xl font-medium leading-display">{post.title}</h1>
+          <p className="mt-4 text-lg leading-relaxed opacity-80">{post.excerpt}</p>
+          <p className="mt-6 flex flex-wrap gap-x-4 gap-y-1 text-sm opacity-80">
+            {author && (
+              <span>
+                {BLOG_COPY.writtenBy}{" "}
+                <Link href={authorPath(author.slug)} rel="author" className={linkClass}>
+                  {author.name}
+                </Link>
+              </span>
+            )}
+            <span>
+              {BLOG_COPY.published}{" "}
+              <time dateTime={dayOf(post.publishedAt)}>{formatDay(post.publishedAt)}</time>
+            </span>
+            {revised && revised !== dayOf(post.publishedAt) && (
+              <span>
+                {BLOG_COPY.updated} <time dateTime={lastChanged(post)}>{formatDay(revised)}</time>
+              </span>
+            )}
+            <span>
+              {readingMinutes(post.body)} {BLOG_COPY.minutes}
+            </span>
+          </p>
+        </header>
+
+        {cover?.width && cover.height ? (
+          <div className="mx-auto w-full max-w-[64rem] px-4 md:px-6 xl:px-8">
+            {/* The cover is the page's LCP: load it first. */}
+            <Image
+              src={cover.url}
+              alt={cover.alt}
+              width={cover.width}
+              height={cover.height}
+              sizes="(min-width: 64rem) 64rem, 100vw"
+              priority
+              className="h-auto w-full"
+            />
+          </div>
+        ) : null}
+
+        <div className="mx-auto w-full max-w-[48rem] px-4 pb-16 pt-10 md:px-6 xl:px-8">
+          {contents.length >= 3 && (
+            <nav aria-labelledby="post-contents" className="mb-10">
+              <h2 id="post-contents" className="text-lg font-medium">
+                {BLOG_COPY.contents}
+              </h2>
+              <ol className="mt-3 list-decimal space-y-1 pl-5">
+                {contents.map((heading) => (
+                  <li key={heading.id}>
+                    <a href={`#${heading.id}`} className={linkClass}>
+                      {heading.text}
+                    </a>
+                  </li>
+                ))}
+              </ol>
+            </nav>
+          )}
+
+          {/* Article typography: style the rich text's elements in globals.css under `.prose-cms`. */}
+          <RichText data={post.body} hrefs={BLOG_HREFS} className="prose-cms" />
+
+          {author && (
+            <aside aria-label={`${BLOG_COPY.writtenBy} ${author.name}`} className="mt-16 flex gap-4 border-t pt-8">
+              {photo?.width && photo.height ? (
+                <Image
+                  src={photo.url}
+                  alt={photo.alt}
+                  width={64}
+                  height={64}
+                  className="size-16 shrink-0 rounded-full object-cover"
+                />
+              ) : null}
+              <div>
+                <p className="font-medium">
+                  <Link href={authorPath(author.slug)} rel="author" className={linkClass}>
+                    {author.name}
+                  </Link>
+                  {author.role ? <span className="opacity-80"> · {author.role}</span> : null}
+                </p>
+                {author.bio ? <p className="mt-2 leading-relaxed opacity-80">{author.bio}</p> : null}
+              </div>
+            </aside>
+          )}
+        </div>
+      </article>
+
+      {related.length > 0 && (
+        <section
+          aria-labelledby="post-related"
+          className="mx-auto w-full max-w-[64rem] px-4 pb-24 md:px-6 xl:px-8"
+        >
+          <h2 id="post-related" className="text-2xl font-medium leading-display">
+            {BLOG_COPY.related}
+          </h2>
+          <ul className="mt-6 grid gap-10 md:grid-cols-3">
+            {related.map((item) => (
+              <li key={item.id}>
+                <PostCard post={item} level="h3" />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </div>
+  );
+};

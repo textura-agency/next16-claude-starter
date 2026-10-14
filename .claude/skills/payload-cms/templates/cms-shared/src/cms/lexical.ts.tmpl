@@ -1,0 +1,97 @@
+// 📖 Docs: obsidian/backend/cms-payload.md
+/**
+ * Reading a saved Lexical document as plain values — its words, its `<h2>`
+ * outline, a heading's anchor. Pure functions, no Payload import: the rich-text
+ * renderer (`components/cms/rich-text.tsx`) and the reads (`cms/blog.ts`,
+ * `cms/entries.ts`) both use them, so an anchor in the contents list is always
+ * the `id` the heading was rendered with.
+ *
+ * Shared by the blog and collection kits (`templates/cms-shared`, added with either).
+ */
+
+/** The parts of a serialized Lexical node this module reads. */
+interface LexicalNode {
+  type?: string;
+  tag?: string;
+  text?: string;
+  children?: readonly LexicalNode[];
+}
+
+const isNode = (value: unknown): value is LexicalNode =>
+  typeof value === "object" && value !== null;
+
+/** The root's children of a saved rich-text value, or `[]` for anything else. */
+const rootChildren = (value: unknown): readonly LexicalNode[] => {
+  if (!isNode(value) || !("root" in value)) return [];
+  const root = (value as { root?: unknown }).root;
+  return isNode(root) && Array.isArray(root.children) ? root.children : [];
+};
+
+/** A node's text, children included, with block nodes separated by a space. */
+export const nodeText = (node: LexicalNode): string =>
+  typeof node.text === "string"
+    ? node.text
+    : (node.children ?? []).map(nodeText).join(node.type === "paragraph" ? "" : " ");
+
+/** The whole document as plain text — for word counts, feeds and `/llms.txt`. */
+export const lexicalText = (value: unknown): string =>
+  rootChildren(value)
+    .map(nodeText)
+    .join("\n\n")
+    .replace(/[ \t]+/g, " ")
+    .trim();
+
+/** How many words the document holds — the thin-content gate reads it. */
+export const wordCount = (value: unknown): number => {
+  const text = lexicalText(value);
+  return text ? text.split(/\s+/).length : 0;
+};
+
+/** Minutes to read at 230 words a minute, never under 1. */
+export const readingMinutes = (value: unknown): number =>
+  Math.max(1, Math.round(wordCount(value) / 230));
+
+/** `"How we price a project?"` → `"how-we-price-a-project"` — a URL-safe slug. */
+export const slugify = (text: string): string =>
+  text
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+
+export interface Heading {
+  /** The anchor — `#id` — the renderer gives the heading. */
+  id: string;
+  text: string;
+}
+
+/**
+ * The document's `<h2>`s, in order, with the ids the renderer gives them.
+ * Repeated headings get `-2`, `-3`… exactly as `headingIds` numbers them.
+ */
+export const headingsOf = (value: unknown): Heading[] => {
+  const ids = headingIds();
+  return rootChildren(value)
+    .filter((node) => node.type === "heading" && node.tag === "h2")
+    .map((node) => {
+      const text = nodeText(node).trim();
+      return { id: ids(text), text };
+    })
+    .filter((heading) => heading.text !== "");
+};
+
+/**
+ * A fresh id allocator for one document: the same text twice gets `-2` the
+ * second time, so two "Pricing" headings never share an anchor.
+ */
+export const headingIds = () => {
+  const seen = new Map<string, number>();
+  return (text: string): string => {
+    const base = slugify(text) || "section";
+    const count = (seen.get(base) ?? 0) + 1;
+    seen.set(base, count);
+    return count === 1 ? base : `${base}-${count}`;
+  };
+};

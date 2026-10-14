@@ -1,0 +1,14 @@
+import { BlogTopicView, getTopicStaticParams, getTopicPageMetadata } from "@/views/blog/blog-topic";
+
+interface Props {
+  params: Promise<{ slug: string }>;
+}
+
+/** Every one prerendered at build; one published later renders on its first visit. */
+export const generateStaticParams = getTopicStaticParams;
+
+export const generateMetadata = async ({ params }: Props) => getTopicPageMetadata((await params).slug);
+
+export default async function BlogTopicPage({ params }: Props) {
+  return <BlogTopicView slug={(await params).slug} />;
+}

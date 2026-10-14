@@ -22,7 +22,7 @@ single source of truth for how this project is built.
 
 **Commands, skills and agents** live in `.claude/` and are mapped in
 `obsidian/workflows/agent-harness.md`. Common entry points: `/new-page`,
-`/section`, `/qa`, `/ship`, `/cms`, `/db`, `/seo`, `/migrate-site`, `/perf`,
+`/section`, `/qa`, `/ship`, `/cms`, `/db`, `/seo`, `/seo-grow`, `/migrate-site`, `/perf`,
 `/load`, `/mobile`. The testing tools are `tools/qa/*` (`yarn qa:*`) — see
 `tools/qa/README.md` and `obsidian/workflows/testing-pipeline.md`.
 
@@ -98,7 +98,9 @@ Notes link each other with `[[wikilinks]]` — follow them to navigate.
     `cookies()` or `isBot()` in a page, view, layout, `lib/site` or the SEO
     helpers — `src/proxy.ts` routes bots (search and AI crawlers) to
     `/robot-view`. Don't add an `app/loading.tsx` without a real skeleton (an
-    empty one hides the page from non-JS crawlers). The consent banner is
+    empty one hides the page from non-JS crawlers). Every page is registered
+    in `src/lib/routes.ts` (sitemap, `/llms.txt`, breadcrumbs read it); `yarn
+    qa:seo` checks the served values. The consent banner is
     server-rendered — it is often the phone's LCP. See
     `obsidian/frontend/robot-form.md`, `.claude/rules/seo-robot.md`.
 16. **Loops and frames.** Every looping spring reads `useMotionOff()` (reduced

@@ -17,7 +17,7 @@ category **preferences modal**. No third-party library (the old
 | File | Role |
 |------|------|
 | `Cookie.tsx` | Mount component — hydrates the store, renders banner + modal |
-| `LazyCookie.tsx` | Client wrapper — **static import** (server-rendered banner) + the robot-form gate (layout effect on `isRobotView()`) |
+| `LazyCookie.tsx` | Client wrapper — **static import** (server-rendered banner) + the robot-form gate (`useSyncExternalStore` on `isRobotView()` — `false` while hydrating, the real answer before paint) |
 | `consent-flag.ts` | `CONSENT_STORAGE_KEY` + `CONSENT_FLAG_SCRIPT` — no `"use client"`, so the server layout inlines the string |
 | `CookieBanner.tsx` | Bottom-right consent banner |
 | `CookiePreferencesModal.tsx` | Category preferences dialog with per-category toggles |
@@ -166,6 +166,14 @@ See [[animation-system]] and [[seo-metadata]].
 `RobotProvider` / `useRobot()` / `<RobotView/>` / `isRobotView()` and the
 resting twins of the engine's primitives (`robot-spring`, `robot-inview`,
 `robot-hover`, `robot-text`). Full note: [[robot-form]].
+
+## JSON-LD — `json-ld.tsx`
+
+`<JsonLd data={…} />` — a Server Component that renders one
+`<script type="application/ld+json">`, with `<` escaped so copy can't close the
+script early. The root layout renders the site graph with it; a view renders
+its own page graph (`jsonLdGraph(getBreadcrumbStructuredData(path), …)`) — one
+tag per page besides the site's. Builders: [[utils]] → `seo/structured-data.ts`.
 
 ## Origin sync — `origin-sync.ts`
 

@@ -1,0 +1,37 @@
+// 📖 Docs: obsidian/backend/cms-payload.md
+/**
+ * The visible breadcrumb — the same list the page's `BreadcrumbList` JSON-LD
+ * describes (`cms/docs.ts` → `trailFor`), so the schema never claims a trail
+ * the reader can't see. A named `<nav>` landmark with an ordered list; the
+ * last crumb is the current page, not a link.
+ *
+ * Shared by the blog and collection kits (`templates/cms-shared`, added with either).
+ */
+import Link from "next/link";
+
+import type { Crumb } from "@/cms/docs";
+
+export const Breadcrumbs = ({ crumbs, label = "Breadcrumb" }: { crumbs: readonly Crumb[]; label?: string }) => (
+  <nav aria-label={label}>
+    <ol className="flex flex-wrap items-center gap-x-2 gap-y-1 opacity-80">
+      {crumbs.map((crumb, index) => {
+        const current = index === crumbs.length - 1;
+        return (
+          <li key={crumb.path} className="flex items-center gap-x-2">
+            {index > 0 && <span aria-hidden="true">/</span>}
+            {current ? (
+              <span aria-current="page">{crumb.label}</span>
+            ) : (
+              <Link
+                href={crumb.path}
+                className="underline underline-offset-4 transition-opacity duration-[var(--duration-fast)] ease-entrance hover:opacity-70 focus-visible:opacity-70"
+              >
+                {crumb.label}
+              </Link>
+            )}
+          </li>
+        );
+      })}
+    </ol>
+  </nav>
+);

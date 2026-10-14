@@ -179,6 +179,31 @@ report FAIL "request headers read on a prerenderable route (makes / dynamic)" \
   "await headers() / cookies() / isBot() in a page, view, layout, site config or metadata helper turns the route dynamic for everyone. Decide bots in src/proxy.ts; take the origin from the build env." \
   "$(SRC '(await[[:space:]]+(headers|cookies|isBot)\(\)|(^|[^.[:alnum:]_])(headers|cookies)\(\)\.)' | grep -E '(app/(page|layout)\.tsx|views/|lib/site|utils/seo/)' )"
 
+# Every page is in the route registry, which feeds sitemap.xml, /llms.txt and
+# the breadcrumbs. A route missing from a hand-kept sitemap array was the most
+# common SEO miss on sites built from this starter. Route groups `(x)` drop out
+# of the path; dynamic segments (`[slug]`) list their pages from data instead.
+routes_ts="src/lib/routes.ts"
+unregistered=""
+if [ -f "$routes_ts" ]; then
+  while IFS= read -r p; do
+    [ -z "$p" ] && continue
+    route="$(printf '%s' "$p" | sed -E 's#^src/app##; s#/page\.tsx$##; s#/\([^/]+\)##g')"
+    [ -z "$route" ] && route="/"
+    case "$route" in /robot-view*|*\[*) continue ;; esac
+    grep -qE "path:[[:space:]]*[\"']${route}[\"']" "$routes_ts" || unregistered="${unregistered}${p} → ${route}"$'\n'
+  done < <(find src/app -name 'page.tsx' -not -path 'src/app/(payload)/*' 2>/dev/null)
+fi
+report FAIL "route missing from the route registry" \
+  "Add it to ROUTES in src/lib/routes.ts (sitemap.xml, /llms.txt and breadcrumbs read it) — obsidian/workflows/new-page.md." \
+  "$unregistered"
+
+# lastModified: new Date() stamps every page as changed on every deploy; Google
+# learns the dates are noise and ignores them. Use the content's real date.
+report WARN "sitemap lastModified is the build time" \
+  "Give each route a real content date (ROUTES[].updated) or omit it." \
+  "$(SRC 'lastModified:[[:space:]]*new Date\(\)' | grep -E 'app/sitemap')"
+
 site_ts="src/lib/site.ts"
 site_filled=1
 if [ -f "$site_ts" ] && grep -qE '`\$\{TODO\}|"TODO:|TODO:' "$site_ts" && grep -qE 'name:[[:space:]]*`\$\{TODO\}' "$site_ts"; then site_filled=0; fi

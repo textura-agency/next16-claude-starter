@@ -10,8 +10,9 @@
  * Kits (the `payload-cms` skill): core is this file as-is. The admin kit
  * fills `graphics` / `beforeDashboard` / `afterNavLinks`; analytics adds the
  * PageViews collection, its dashboard card, nav link and view; the guide adds
- * its nav link and view. Each kit's lines are marked — delete what is not
- * installed, then `yarn generate:importmap`.
+ * its nav link and view; blog adds Posts / Topics / Authors, collection adds
+ * Entries. Each kit's lines are marked — delete what is not installed, then
+ * `yarn generate:importmap`.
  */
 import path from "path";
 import { fileURLToPath } from "url";
@@ -31,6 +32,10 @@ import { Media } from "./cms/collections/media";
 import { seedShareImage } from "./cms/seed";
 import { PageViews } from "./cms/collections/page-views"; // [analytics kit]
 import { Users } from "./cms/collections/users";
+import { Authors } from "./cms/collections/authors"; // [blog kit]
+import { Posts } from "./cms/collections/posts"; // [blog kit]
+import { Topics } from "./cms/collections/topics"; // [blog kit]
+import { Entries } from "./cms/collections/entries"; // [collection kit]
 import { globals } from "./cms/globals";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -120,7 +125,15 @@ export default buildConfig({
     },
   },
   i18n: { supportedLanguages: { en }, fallbackLanguage: "en" },
-  collections: [Users, Media, PageViews], // PageViews: [analytics kit]
+  collections: [
+    Posts, // [blog kit]
+    Topics, // [blog kit]
+    Authors, // [blog kit]
+    Entries, // [collection kit]
+    Users,
+    Media,
+    PageViews, // [analytics kit]
+  ],
   globals,
   // The designed share card into Media, as the SEO defaults' image — once.
   onInit: seedShareImage,

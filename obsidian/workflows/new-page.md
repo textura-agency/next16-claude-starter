@@ -43,8 +43,20 @@ and hand it to an AI agent or follow it manually.
 10. **Semantic & accessible markup.** Follow [[html-semantics]] — one `<h1>`,
     proper landmarks, native elements, named controls, visible focus, `alt` text,
     semantic `tag` on animation components.
-11. **Route registered.** Add the route to `src/app/sitemap.ts` in the same
-    change — the most common drift in this repo. See [[seo-aeo]].
+11. **Route registered — and findable.** Add the route to `ROUTES` in
+    `src/lib/routes.ts` in the same change (`verify.sh` FAILs without it):
+    `label`, a one-sentence `summary`, `parent` for the breadcrumb, `updated`
+    when the copy changes. `sitemap.xml`, `/llms.txt` and the breadcrumb
+    JSON-LD follow from it. Then the page launches with what it needs to be
+    found:
+    - one main query; the title (≤ 60 chars, query first), `<h1>`, slug and
+      description (70–160) all describe it — unique across the site
+    - the answer to that query in the first two sentences of the page
+    - **linked from at least three related pages** with descriptive anchor text
+      (an orphan waits months to be found)
+    - its JSON-LD: breadcrumb, plus `Article` / `Service` / `FAQPage` where the
+      page really is one ([[utils]] → `seo/structured-data.ts`)
+    - `yarn qa:seo` on the build — no FAIL. See [[seo-aeo]].
 12. **Build it fast from the start** — the defaults that 50+ production sites
     had to be fixed into ([[fix-catalog]]):
     - **Hero/LCP:** `priority` on the LCP image only; if a loader covers the

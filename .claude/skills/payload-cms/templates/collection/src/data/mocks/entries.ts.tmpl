@@ -1,0 +1,25 @@
+// 📖 Docs: .claude/skills/payload-cms/references/collection-pages.md
+/**
+ * The data-driven pages' own copy — the hub's heading and the labels every
+ * page prints. Plain data like every mock, so it can become an admin global
+ * (`TEXT_GLOBALS`) read through `getText("entries")`.
+ *
+ * PROJECT CONFIG: the heading is the hub's `<h1>` — the broad term the set
+ * should rank for ("Physiotherapy clinics across Yorkshire").
+ */
+export const ENTRIES_COPY = {
+  heading: "TODO: What these pages are, in the words people search",
+  intro: "TODO: one or two sentences on what the set covers and how to find the right one.",
+  empty: "Nothing published yet.",
+  facts: "At a glance",
+  questions: "Questions",
+  moreIn: "More in",
+  seeAlso: "See also",
+  backTo: "All",
+  address: "Address",
+  phone: "Telephone",
+  email: "Email",
+  hours: "Opening hours",
+  map: "Open in Maps",
+  breadcrumb: "Breadcrumb",
+} as const;

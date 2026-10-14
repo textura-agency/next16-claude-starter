@@ -81,7 +81,7 @@ const result = { url: o.url, sel: o.sel || null, steps: [] };
 let pass = true, base;
 const record = async (label, expectDraw) => {
   const s = await state();
-  let reasons = [];
+  const reasons = [];
   if (expectDraw) {
     if (!s.present) reasons.push("no canvas");
     else {

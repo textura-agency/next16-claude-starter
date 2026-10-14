@@ -1,0 +1,7 @@
+import { BlogIndexView, getBlogMetadata } from "@/views/blog/blog-index";
+
+export const generateMetadata = getBlogMetadata;
+
+export default function BlogPage() {
+  return <BlogIndexView />;
+}

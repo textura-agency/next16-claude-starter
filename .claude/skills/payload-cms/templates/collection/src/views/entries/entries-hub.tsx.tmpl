@@ -1,0 +1,67 @@
+// 📖 Docs: .claude/skills/payload-cms/references/collection-pages.md
+/**
+ * The hub — `/entries` (renamed per project): every published page, grouped,
+ * each a link whose text is the page's title. The page that should rank for
+ * the broad term, and the reason no entry is an orphan. Its `<head>` is the
+ * SEO global's `entries` tab (add it to `seo-pages.ts`).
+ *
+ * Thin pages are listed too — a person can use them; only search is asked to
+ * wait. Past a few hundred pages, give each group its own page and link
+ * those from here instead.
+ */
+import type { Metadata } from "next";
+import Link from "next/link";
+
+import { getPageMetadata } from "@/cms/content";
+import { ENTRIES, entryPath, getEntries, groupEntries } from "@/cms/entries";
+import { slugify } from "@/cms/lexical";
+import { JsonLd } from "@/components/common/json-ld";
+import { ENTRIES_COPY } from "@/data/mocks/entries";
+import { getBreadcrumbStructuredData, jsonLdGraph } from "@/utils/seo/structured-data";
+
+export const getEntriesHubMetadata = (): Promise<Metadata> => getPageMetadata("entries");
+
+const linkClass =
+  "underline underline-offset-4 transition-opacity duration-[var(--duration-fast)] ease-entrance hover:opacity-70 focus-visible:opacity-70";
+
+export const EntriesHubView = async () => {
+  const groups = groupEntries(await getEntries());
+  const breadcrumb = getBreadcrumbStructuredData(ENTRIES.path);
+
+  return (
+    <div className="min-h-lvh w-full bg-background font-sans text-foreground">
+      {breadcrumb && <JsonLd data={jsonLdGraph(breadcrumb)} />}
+      <header className="mx-auto w-full max-w-[64rem] px-4 pb-10 pt-24 md:px-6 md:pt-28 xl:px-8">
+        <h1 className="text-4xl font-medium leading-display">{ENTRIES_COPY.heading}</h1>
+        <p className="mt-4 max-w-[40rem] leading-relaxed opacity-80">{ENTRIES_COPY.intro}</p>
+      </header>
+
+      <main className="mx-auto w-full max-w-[64rem] px-4 pb-24 md:px-6 xl:px-8">
+        {groups.length === 0 ? (
+          <p className="opacity-80">{ENTRIES_COPY.empty}</p>
+        ) : (
+          groups.map(([group, entries]) => {
+            const id = `group-${slugify(group)}`;
+            return (
+              <section key={group} aria-labelledby={id} className="mt-10 first:mt-0">
+                <h2 id={id} className="text-2xl font-medium leading-display">
+                  {group}
+                </h2>
+                <ul className="mt-4 grid gap-6 md:grid-cols-2">
+                  {entries.map((entry) => (
+                    <li key={entry.id}>
+                      <Link href={entryPath(entry.slug)} className={`${linkClass} text-lg font-medium`}>
+                        {entry.title}
+                      </Link>
+                      <p className="mt-1 leading-relaxed opacity-80">{entry.summary}</p>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            );
+          })
+        )}
+      </main>
+    </div>
+  );
+};

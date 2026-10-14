@@ -1,0 +1,155 @@
+// 📖 Docs: obsidian/backend/cms-payload.md
+import type { CollectionConfig } from "payload";
+import { HeadingFeature, LinkFeature, lexicalEditor } from "@payloadcms/richtext-lexical";
+
+import { revalidateOnChange, revalidateOnDelete } from "../collection-hooks";
+import { searchFields } from "../fields/search";
+import { keepPreviousSlug, slugFields } from "../fields/slug";
+
+/**
+ * Blog posts — `/blog/<slug>`. Drafts until published; only published posts
+ * are read by the site (and by the public API).
+ *
+ * What each field is for, in search terms:
+ * - `title` is the `<h1>` and, unless the search title overrides it, the
+ *   `<title>` — write it as the question or phrase a reader searches.
+ * - `excerpt` is the meta description, the card text, the feed summary and
+ *   the `/llms.txt` line — one place, so they never disagree.
+ * - `publishedAt` / `revisedAt` are the Article dates and the sitemap's
+ *   `lastmod`. `revisedAt` is set by hand on a real revision, never by a typo
+ *   fix: a date that moves on every save teaches Google to ignore it.
+ * - `author` signs it (an author page, `Person` in the JSON-LD).
+ * - `topics` file it in a cluster; the first is its breadcrumb parent.
+ * - `related` picks the three posts linked at the end; blank → the newest
+ *   posts in its first topic. Internal links are how a cluster ranks.
+ */
+export const Posts: CollectionConfig = {
+  slug: "posts",
+  labels: { singular: "Post", plural: "Posts" },
+  admin: {
+    useAsTitle: "title",
+    group: "Blog",
+    defaultColumns: ["title", "author", "publishedAt", "_status"],
+    description: "Articles at /blog. Saved as drafts until you publish.",
+  },
+  versions: { drafts: true, maxPerDoc: 25 },
+  access: {
+    // Editors see drafts; everyone else only what is published.
+    read: ({ req }) => (req.user ? true : { _status: { equals: "published" } }),
+  },
+  hooks: {
+    beforeChange: [keepPreviousSlug],
+    afterChange: [revalidateOnChange],
+    afterDelete: [revalidateOnDelete],
+  },
+  fields: [
+    {
+      type: "tabs",
+      tabs: [
+        {
+          label: "Post",
+          fields: [
+            {
+              name: "title",
+              type: "text",
+              label: "Title",
+              required: true,
+              admin: {
+                description:
+                  "The headline on the page — say what the reader learns, in the words they would search. Under 70 characters.",
+              },
+            },
+            {
+              name: "excerpt",
+              type: "textarea",
+              label: "Summary",
+              required: true,
+              minLength: 70,
+              maxLength: 200,
+              admin: {
+                description:
+                  "One or two sentences on what the post answers. The search description, the card text and the feed — 100–160 characters reads best.",
+              },
+            },
+            {
+              name: "cover",
+              type: "upload",
+              relationTo: "media",
+              label: "Cover image",
+              required: true,
+              admin: { description: "At least 1200 px wide. The card image, the share image and the article image search engines show." },
+            },
+            {
+              name: "body",
+              type: "richText",
+              label: "Body",
+              required: true,
+              editor: lexicalEditor({
+                features: ({ defaultFeatures }) => [
+                  ...defaultFeatures.filter((feature) => !["heading", "link"].includes(feature.key)),
+                  // The page owns the <h1>; sections start at <h2>.
+                  HeadingFeature({ enabledHeadingSizes: ["h2", "h3", "h4"] }),
+                  // Link other posts by picking them — the address follows a rename.
+                  LinkFeature({ enabledCollections: ["posts"] }),
+                ],
+              }),
+              admin: {
+                description:
+                  "Open with the answer, then the detail. One subheading (H2) per question the post answers — they become the contents list.",
+              },
+            },
+          ],
+        },
+        { label: "Search & sharing", fields: searchFields() },
+      ],
+    },
+    ...slugFields("title"),
+    {
+      name: "publishedAt",
+      type: "date",
+      label: "Published",
+      required: true,
+      defaultValue: () => new Date().toISOString(),
+      admin: { position: "sidebar", date: { pickerAppearance: "dayOnly" } },
+    },
+    {
+      name: "revisedAt",
+      type: "date",
+      label: "Revised",
+      admin: {
+        position: "sidebar",
+        date: { pickerAppearance: "dayOnly" },
+        description: "Set when the post was materially updated — shown as \"Updated\". Not for typo fixes.",
+      },
+    },
+    {
+      name: "author",
+      type: "relationship",
+      relationTo: "authors",
+      label: "Author",
+      required: true,
+      admin: { position: "sidebar" },
+    },
+    {
+      name: "topics",
+      type: "relationship",
+      relationTo: "topics",
+      hasMany: true,
+      label: "Topics",
+      admin: { position: "sidebar", description: "The first one is its place in the breadcrumb." },
+    },
+    {
+      name: "related",
+      type: "relationship",
+      relationTo: "posts",
+      hasMany: true,
+      maxRows: 3,
+      label: "Related posts",
+      filterOptions: ({ id }) => (id ? { id: { not_equals: id } } : true),
+      admin: {
+        position: "sidebar",
+        description: "Up to three, linked at the end. Blank: the newest posts in its first topic.",
+      },
+    },
+  ],
+};

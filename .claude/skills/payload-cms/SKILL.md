@@ -1,6 +1,6 @@
 ---
 name: payload-cms
-description: Put a Payload CMS admin on a site built from this starter — every visible string and content photo editable, derived from the site's own content objects with the code's copy as the fallback, a per-page SEO global that drives <head>/JSON-LD/sitemap/llms.txt, Supabase Postgres + Storage, migrations only, static routes revalidated on save. Ships copy-ready kits (core, admin skin, analytics, editor's guide, legal rich text) proven on a production site. Use when the user asks to "add a CMS / admin / Payload", "make the content editable", "let the client edit the text", "SEO in the admin", or wants marketing copy out of hardcoded props. For the admin's look and the editor's guide see `payload-admin`; for visitor analytics see `payload-analytics`.
+description: Put a Payload CMS admin on a site built from this starter — every visible string and content photo editable, derived from the site's own content objects with the code's copy as the fallback, a per-page SEO global that drives <head>/JSON-LD/sitemap/llms.txt, Supabase Postgres + Storage, migrations only, static routes revalidated on save. Ships copy-ready kits (core, admin skin, analytics, editor's guide, legal rich text, a blog, and many data-driven pages with a quality bar for indexing) proven on a production site. Use when the user asks to "add a CMS / admin / Payload", "make the content editable", "let the client edit the text", "SEO in the admin", "add a blog / articles / news", "location pages", "programmatic SEO", "a page per service / city / integration", or wants marketing copy out of hardcoded props. For the admin's look and the editor's guide see `payload-admin`; for visitor analytics see `payload-analytics`.
 ---
 
 # Payload CMS — the admin flow
@@ -39,6 +39,7 @@ one without the reason in front of you.
 | D14 | **English admin**, labels in the editor's words, sidebar groups in reading order, row labels from the row's own copy | An admin that reads like the site is one an owner uses. |
 | D15 | **Every legal section is one rich-text field** (bold, links, lists, h3; table/button as blocks) | Asked for after a block-per-paragraph model: an editor could not bold a word or link inside a sentence. Start with rich text. |
 | D16 | `/admin` and `/api/` disallowed in `robots.ts`; `/llms.txt` from the SEO global; sitemap `lastmod` = the globals' `updatedAt` | SEO audit findings: a login screen in the crawl budget, request-time `lastmod` (ignored), no llms.txt. |
+| D17 | Things that are many (posts, locations, services) are **collections with their own routes** — the `blog` / `collection` kits — each page indexed only when it clears a bar, an old slug answering 308 | Blogs and page sets are where sites win long-tail search, and where thin, templated or orphaned pages lose it. |
 
 ## The kits
 
@@ -54,6 +55,14 @@ fill each one.
 | `analytics` | `cms/analytics.ts`, `collections/page-views.ts`, `api/track/route.ts`, `analytics-beacon.tsx`, `admin/analytics-*.tsx`, `admin/format.ts` | `payload-analytics` |
 | `guide` | `admin/guide-{content,body,view,nav}.tsx` (+ `yarn qa:shots`) | `payload-admin` |
 | `legal` | `cms/legal*.ts`, `views/legal/legal-rich-text.tsx` — **adapt-kit** (`--force`) | `references/legal-rich-text.md` |
+| `blog` | collections posts / topics / authors, `cms/blog.ts`, `views/blog/*`, `(site)/blog/{page,[slug],topic/[slug],author/[slug],feed.xml}` | `references/blog.md` |
+| `collection` | collection entries + `cms/entries{,-config}.ts`, `views/entries/*`, `(site)/entries/{page,[slug]}` — renamed per project (locations, services…) | `references/collection-pages.md` |
+
+`blog` and `collection` bring `cms-shared` (slug + previous-slug redirects,
+the *Search & sharing* fields, the Lexical renderer with `<h2>` anchors and
+`next/image`, visible breadcrumbs, guarded reads). Each kit adds its hub to
+`ROUTES` + `SEO_PAGES`, its entries to `sitemap.ts` and `/llms.txt` — the
+reference's checklist.
 
 `core` + `admin` is the minimum (the `(payload)` layout imports the skin).
 `payload.config.ts` marks each kit's lines — delete the ones not installed.
@@ -135,8 +144,15 @@ rules and the edge cases):
    does `export const generateMetadata = getHomeMetadata`. `(site)/layout.tsx`
    uses `getSiteMetadata()`; `SiteDocument` renders `getStructuredData()`.
 3. `sitemap.ts` → `getSitemapPages()` (noindex pages dropped, `lastmod` from the
-   content). `robots.ts` → disallow `/admin` and `/api/` (keep `/robot-view`).
-4. `/llms.txt` from the kit. Details: `references/seo-global.md`.
+   content). `robots.ts` → add `/admin` and `/api/` to `NEVER_CRAWLED` (keep
+   `/robot-view` and the starter's per-purpose AI-crawler groups).
+4. `/llms.txt` from the kit — it replaces the starter's
+   `src/app/llms.txt/route.ts`. Details: `references/seo-global.md`.
+5. Keep the starter's route registry (`src/lib/routes.ts`): one `SEO_PAGES`
+   entry per `ROUTES` entry, same paths. Collection pages (`blog`,
+   `collection` kits) are not registry entries — their hub is; the kit's
+   `get…Sitemap()` / `get…LlmsLines()` add the rest. `verify.sh` still FAILs on a page
+   missing from `ROUTES`, and the breadcrumb JSON-LD reads its `parent` chain.
 
 ## Phase 4 — Schema, migration, first user
 
@@ -179,11 +195,13 @@ into drop + add migrations, or hand-write it and patch the `.json` snapshot
 
 `cms-payload.md` (what this project's admin holds: groups, open lists, kits,
 where data lives), `tech-stack.md` + `changelog.md` (deps), `environment-
-variables.md`, an ADR for any departure from D1–D16.
+variables.md`, an ADR for any departure from D1–D17.
 
 ## Traps (each cost time on the reference site)
 
 - Payload CLI on Node 20.17 → silent no-op (Phase 0).
+- Payload CLI without `"type": "module"` in `package.json` →
+  `ERR_REQUIRE_ASYNC_MODULE` from `@payloadcms/richtext-lexical` (Phase 1).
 - `.env.local` overrides `.env` — a `DATABASE_URL` left in both takes `.env.local`'s.
 - Password with `%`/`$` in the URL: `%` throws "URI malformed"; `$` is expanded
   by `@next/env` and silently shortens it. Percent-encode, or letters+digits.
@@ -192,7 +210,8 @@ variables.md`, an ADR for any departure from D1–D16.
 - `revalidatePath` throws outside a request (seed, script) — the kit catches it.
 - A `"use client"` module's exports are client references — a server component
   can't call a helper exported from one (why `admin/format.ts` exists).
-- Payload's rich-text types use `any` — `verify.sh` skips `payload-types.ts`.
+- Payload's rich-text types use `any` — `verify.sh` skips `payload-types.ts`,
+  and `eslint.config.mjs` ignores it, `src/migrations/` and `importMap.js`.
 - Payload's admin class names aren't a public API: after an upgrade, open
   `/admin` and re-check the skin.
 - Saving locally writes the live DB when dev and prod share one Supabase project

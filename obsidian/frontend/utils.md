@@ -88,12 +88,41 @@ used internally by the scroll/animation system. Marked `@ts-nocheck`. `#do-not-m
 uploaded image's size and an editor's noindex ([[cms-payload]]); all default to
 the starter's behaviour. See [[seo-metadata]].
 
+The metadata also carries the Search Console / Bing verification tags when
+`siteConfig.verification` holds a code (env `GOOGLE_SITE_VERIFICATION`,
+`BING_SITE_VERIFICATION`).
+
 ## `seo/structured-data.ts`
 
-`getSiteStructuredData(overrides?)` — builds the `Organization` + `WebSite`
-JSON-LD graph rendered by the root layout. Overrides (`name`, `legalName`,
-`description`, `logo`, `sameAs`) come from a CMS's SEO defaults; each falls back
-to `siteConfig`. See [[seo-metadata]].
+Typed JSON-LD builders — each returns a `JsonLdNode`; `jsonLdGraph(...nodes)`
+wraps them into one document and `<JsonLd>` ([[components/common|common]])
+renders it. Entities link by `@id` (`ORGANIZATION_ID`, `WEBSITE_ID`).
+
+| Builder | Node |
+|---|---|
+| `getSiteStructuredData(overrides?)` | `Organization` (or a `LocalBusiness` subtype via `type`) + `WebSite` — root layout only. Facts from `siteConfig.organization` (founding date, email, phone, address, `sameAs`); overrides from a CMS's SEO defaults |
+| `getBreadcrumbStructuredData(path)` | `BreadcrumbList` from the route registry's `parent` chain; `null` for `/` |
+| `getArticleStructuredData(input)` | `BlogPosting` / `Article` / `NewsArticle` with a `Person` author, dates, publisher |
+| `getServiceStructuredData(input)` | `Service` with `provider` → the Organization |
+| `getFaqStructuredData(path, items)` | `FAQPage` — visible questions only; no Google rich result since May 2026 |
+| `getPersonStructuredData(input)` | `Person` (`worksFor` → the Organization) |
+| `getLocalBusinessStructuredData(input)` | one location: a `LocalBusiness` subtype with its own `@id`, address, hours, geo, map, `parentOrganization` → the brand |
+
+`getSiteStructuredData` also emits `areaServed` / `hasMap`, and — for a
+`LocalBusiness` `type` only — `openingHoursSpecification`, `geo`, `priceRange`
+from `siteConfig.organization`.
+
+`absoluteUrl(path)` resolves a path on `siteConfig.url`. See [[seo-metadata]]
+and the `schema-markup` skill.
+
+## `seo/hreflang.ts`
+
+Client-safe (no `siteConfig`). `languageAlternates(path, versions, default?)`
+→ the hreflang map with `x-default`, throwing at build time on an invalid
+code or a set without the page itself; `routeLanguages(path)` reads it from
+`ROUTES[].alternates`; `hreflangProblem(code)` explains a bad code;
+`X_DEFAULT`. `generateMetadata` takes the result as `languages`, plus
+`alternateLocales` for `og:locale:alternate`. Skill: `i18n-seo`.
 
 ## Adding a util
 

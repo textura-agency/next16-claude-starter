@@ -1,0 +1,57 @@
+// 📖 Docs: obsidian/backend/cms-payload.md
+import type { CollectionConfig } from "payload";
+
+import { revalidateOnChange, revalidateOnDelete } from "../collection-hooks";
+import { keepPreviousSlug, slugFields } from "../fields/slug";
+
+/**
+ * The people who write the posts. A real name, a role and a short bio on an
+ * author page (`/blog/author/<slug>`) are what search and answer engines read
+ * as experience and accountability — an article signed by "Admin" carries none.
+ * The profiles are the author's `sameAs`: their LinkedIn, their talks, their
+ * own site — pages that are verifiably the same person.
+ */
+export const Authors: CollectionConfig = {
+  slug: "authors",
+  labels: { singular: "Author", plural: "Authors" },
+  admin: {
+    useAsTitle: "name",
+    group: "Blog",
+    defaultColumns: ["name", "role", "updatedAt"],
+    description: "The people posts are signed by. Each has a page listing their posts.",
+  },
+  access: { read: () => true },
+  hooks: {
+    beforeChange: [keepPreviousSlug],
+    afterChange: [revalidateOnChange],
+    afterDelete: [revalidateOnDelete],
+  },
+  fields: [
+    { name: "name", type: "text", label: "Name", required: true },
+    ...slugFields("name"),
+    {
+      name: "role",
+      type: "text",
+      label: "Role",
+      admin: { description: "What they do, as their byline should say it — e.g. Founder, Lead engineer." },
+    },
+    {
+      name: "bio",
+      type: "textarea",
+      label: "Bio",
+      admin: {
+        description:
+          "Two or three sentences: what they work on and why they know it. Shown under each post and on their page.",
+      },
+    },
+    { name: "photo", type: "upload", relationTo: "media", label: "Photo" },
+    {
+      name: "sameAs",
+      type: "array",
+      label: "Profiles",
+      labels: { singular: "Profile", plural: "Profiles" },
+      admin: { description: "Their pages elsewhere — LinkedIn, GitHub, their own site." },
+      fields: [{ name: "url", type: "text", label: "URL", required: true }],
+    },
+  ],
+};

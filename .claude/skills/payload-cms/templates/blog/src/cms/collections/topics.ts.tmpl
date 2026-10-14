@@ -1,0 +1,47 @@
+// 📖 Docs: obsidian/backend/cms-payload.md
+import type { CollectionConfig } from "payload";
+
+import { revalidateOnChange, revalidateOnDelete } from "../collection-hooks";
+import { keepPreviousSlug, slugFields } from "../fields/slug";
+
+/**
+ * Topics — the blog's clusters. Each is a page (`/blog/topic/<slug>`) that
+ * introduces the subject and links every post in it: the hub of a topic
+ * cluster, the page that should rank for the broad term while its posts rank
+ * for the specific questions.
+ *
+ * Few and broad. A topic page with one post is thin — it stays out of the
+ * sitemap and is `noindex` until it holds `MIN_TOPIC_POSTS` (`cms/blog.ts`).
+ */
+export const Topics: CollectionConfig = {
+  slug: "topics",
+  labels: { singular: "Topic", plural: "Topics" },
+  admin: {
+    useAsTitle: "name",
+    group: "Blog",
+    defaultColumns: ["name", "slug", "updatedAt"],
+    description:
+      "The subjects posts are filed under. Keep them few and broad — each one is a page that should rank for its subject.",
+  },
+  access: { read: () => true },
+  hooks: {
+    beforeChange: [keepPreviousSlug],
+    afterChange: [revalidateOnChange],
+    afterDelete: [revalidateOnDelete],
+  },
+  fields: [
+    { name: "name", type: "text", label: "Name", required: true, unique: true },
+    ...slugFields("name"),
+    {
+      name: "intro",
+      type: "textarea",
+      label: "Introduction",
+      required: true,
+      minLength: 70,
+      admin: {
+        description:
+          "What this subject covers and who it is for — the opening of the topic page and its search description. 70–160 characters reads best in results.",
+      },
+    },
+  ],
+};

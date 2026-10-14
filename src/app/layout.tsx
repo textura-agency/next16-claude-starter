@@ -10,6 +10,7 @@ import { getSiteStructuredData } from "@/utils/seo/structured-data";
 import { LazyCookie } from "@/components/common/Cookie";
 import { CONSENT_FLAG_SCRIPT } from "@/components/common/Cookie/consent-flag";
 import { AdaptiveGrid } from "@/components/common/grid";
+import { JsonLd } from "@/components/common/json-ld";
 import { originSyncScript } from "@/components/common/origin-sync";
 import { ReducedMotion } from "@/components/common/reduced-motion";
 import { ScrollLayout } from "@/layouts/scroll-layout";
@@ -53,12 +54,7 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{ __html: originSyncScript(siteConfig.url) }}
         />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify(getSiteStructuredData()),
-          }}
-        />
+        <JsonLd data={getSiteStructuredData()} />
         <ScrollLayout>
           <AdaptiveGrid />
           <ReducedMotion />

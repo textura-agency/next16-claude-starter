@@ -23,7 +23,7 @@ export const useResizeLoop = (
   const width = useRef(0);
   useLoop((time: number) => {
     if (width.current !== window.innerWidth) {
-      onResize && onResize(time);
+      onResize?.(time);
       width.current = window.innerWidth;
     }
   }, props);

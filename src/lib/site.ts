@@ -19,6 +19,22 @@ import { getServerEnv, publicEnv } from "@/env";
 
 const TODO = "TODO:";
 
+export type Weekday =
+  | "Monday"
+  | "Tuesday"
+  | "Wednesday"
+  | "Thursday"
+  | "Friday"
+  | "Saturday"
+  | "Sunday";
+
+/** Days that share opening times — `opens`/`closes` in 24 h `HH:MM`. */
+export interface OpeningHours {
+  days: readonly Weekday[];
+  opens: string;
+  closes: string;
+}
+
 const serverEnv = getServerEnv();
 
 /**
@@ -68,6 +84,74 @@ export const siteConfig = {
   /** The manifest and the PWA splash background. */
   backgroundColor: "#000000",
   locale: "en_US",
+  /**
+   * Facts about the organisation — the JSON-LD `Organization` node and the
+   * "Key facts" in `/llms.txt` read them. Answer engines weigh consistency:
+   * write each exactly as the About page, Google Business Profile and LinkedIn
+   * state it. Leave a field out rather than guess — an absent fact costs
+   * nothing, a wrong one contradicts the rest of the web.
+   */
+  organization: {
+    /** Year founded, `YYYY` (or `YYYY-MM-DD`). */
+    foundingDate: undefined as string | undefined,
+    /** Public contact address. */
+    email: undefined as string | undefined,
+    /** International format: `+44 20 7946 0000`. */
+    telephone: undefined as string | undefined,
+    /** A street address, for a business people visit or that serves an area. */
+    address: undefined as
+      | {
+          streetAddress?: string;
+          addressLocality: string;
+          addressRegion?: string;
+          postalCode?: string;
+          /** ISO 3166-1 alpha-2, e.g. `GB`. */
+          addressCountry: string;
+        }
+      | undefined,
+    /** Profiles the site itself links to (LinkedIn, Instagram, Crunchbase…) — `sameAs`. */
+    sameAs: [] as string[],
+    /*
+      Local business facts (skill: local-seo). Emitted only when the JSON-LD
+      `type` is a LocalBusiness subtype — hours, coordinates and a price range
+      mean nothing on a plain Organization. Copy them from the Google Business
+      Profile, character for character: the site, the profile and every
+      directory listing must agree.
+    */
+    /** Opening hours — one row per set of days sharing the same times (24 h `HH:MM`). */
+    openingHours: [] as OpeningHours[],
+    /** The entrance's coordinates — the pin on the Business Profile, 5+ decimals. */
+    geo: undefined as { latitude: number; longitude: number } | undefined,
+    /** Cities, regions or countries served — a service-area business's main fact. */
+    areaServed: [] as string[],
+    /** `$`–`$$$$`, or a range like `£40–£120`. */
+    priceRange: undefined as string | undefined,
+    /** The Google Business Profile / Maps listing URL. */
+    hasMap: undefined as string | undefined,
+  },
+  /**
+   * Which AI crawlers may read the site — `robots.ts` writes one named group
+   * per crawler. Three purposes, three decisions (the client's, not ours — ask):
+   * - `search`: crawlers that index for AI search answers and cite the page
+   *   (OAI-SearchBot, Claude-SearchBot, PerplexityBot). Blocking them drops
+   *   the site from those answers.
+   * - `userFetch`: fetches a person asked an assistant to make (ChatGPT-User,
+   *   Claude-User, Perplexity-User).
+   * - `training`: crawlers that collect text for model training (GPTBot,
+   *   ClaudeBot, CCBot, Google-Extended, Applebot-Extended…). Blocking them is
+   *   a training opt-out and does not, by itself, remove citations; it never
+   *   affects Google Search.
+   */
+  aiCrawlers: {
+    search: true,
+    userFetch: true,
+    training: true,
+  },
+  /** Search engine ownership codes, from the server env (`.env.example`). */
+  verification: {
+    google: serverEnv.GOOGLE_SITE_VERIFICATION,
+    bing: serverEnv.BING_SITE_VERIFICATION,
+  },
 };
 
 /** The fields still holding a `TODO:` placeholder. */

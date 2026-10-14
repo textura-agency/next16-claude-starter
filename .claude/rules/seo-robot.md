@@ -4,6 +4,7 @@ paths:
   - "src/proxy.ts"
   - "src/views/**"
   - "src/lib/site.ts"
+  - "src/lib/routes.ts"
   - "src/utils/seo/**"
   - "src/utils/bot-ua.ts"
   - "src/utils/is-bot.ts"
@@ -45,3 +46,13 @@ Full notes: `obsidian/frontend/seo-metadata.md` · `obsidian/frontend/robot-form
   Never put it back behind `dynamic({ ssr: false })` or an intro gate.
 - `siteConfig` is server-only (it pulls `zod`); client components get brand
   strings as props.
+- **Every page is in `ROUTES`** (`src/lib/routes.ts`) — sitemap, `/llms.txt`
+  and breadcrumbs read it; `verify.sh` FAILs without it. `updated` is the
+  content's real date, never `new Date()`.
+- **JSON-LD only through `<JsonLd>` + the builders** in
+  `src/utils/seo/structured-data.ts`; one page graph per view.
+- **Languages come from the URL** (`app/[lang]`, static params) — never from
+  `Accept-Language` in a page; the proxy may redirect people on a bare path,
+  **never bots** (skill: i18n-seo). hreflang via `ROUTES[].alternates`.
+- **AI-crawler policy is `siteConfig.aiCrawlers`** — the client's decision; ask
+  before changing it. `yarn qa:seo` must end with zero FAILs.

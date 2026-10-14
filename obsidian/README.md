@@ -54,7 +54,7 @@ humans and AI agents (Claude Code, Cursor).
 ### 03 — Backend
 - [[backend/README|Backend overview]] — API layer, CMS & database
 - [[api-architecture]] — `app/api` route-handler convention & secret handling
-- [[cms-payload]] — Payload CMS, installed per project into this Next app
+- [[cms-payload]] — Payload CMS, installed per project into this Next app (kits incl. a blog and data-driven page sets)
 - [[database-supabase]] — Supabase Postgres: connections, keys, RLS, migrations
 
 ### 04 — Workflows
@@ -66,7 +66,7 @@ humans and AI agents (Claude Code, Cursor).
 - [[qa-verification]] — how work is checked before it is called done
 - [[cms-admin]] — the CMS admin flow: every string editable, SEO per page, the site's look, analytics, an editor's guide
 - [[ship]] — the pre-launch gate and deployment
-- [[seo-aeo]] — SEO & answer-engine visibility as an ongoing practice
+- [[seo-aeo]] — SEO & answer-engine visibility as an ongoing practice (local, languages, `/seo-grow` after launch)
 - [[site-migration]] — protecting rankings when rebuilding a live site
 - [[optimize-load]] — Lighthouse across laptop, tablet and mobile; all four categories into the green
 - [[optimize-performance]] — measure the built page in real Chrome, fix what the numbers blame, prove it

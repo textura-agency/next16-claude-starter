@@ -12,6 +12,10 @@
 #   analytics  page-views collection, /api/track, the beacon, the Analytics view + card
 #   guide      the editor's guide at /admin/guide
 #   legal      legal pages as rich text — ADAPT, never copy blind (refused without --force)
+#   blog       posts / topics / authors: /blog, /blog/<slug>, topic + author pages, RSS
+#   collection many data-driven pages from one template (locations, services…) with
+#              a quality bar for indexing — /entries/<slug>, renamed per project
+#   (blog and collection bring cms-shared: slug + search fields, rich text, breadcrumbs)
 #
 # Never overwrites an existing file without --force; prints every path it
 # wrote or skipped, so the run is the checklist of what to fill in next.
@@ -24,16 +28,20 @@ for arg in "$@"; do
   case "$arg" in
     --force) FORCE=1 ;;
     --dry-run) DRY=1 ;;
-    -h|--help) sed -n '2,18p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,22p' "$0"; exit 0 ;;
     *) KITS+=("$arg") ;;
   esac
 done
-[ "${#KITS[@]}" -eq 0 ] && { sed -n '2,18p' "$0"; exit 2; }
+[ "${#KITS[@]}" -eq 0 ] && { sed -n '2,22p' "$0"; exit 2; }
+# blog and collection share their building blocks — add them once, first.
+for kit in "${KITS[@]}"; do
+  if [ "$kit" = blog ] || [ "$kit" = collection ]; then KITS=(cms-shared "${KITS[@]}"); break; fi
+done
 
 wrote=0; skipped=0
 for kit in "${KITS[@]}"; do
   src="$HERE/templates/$kit"
-  [ -d "$src" ] || { echo "✖ unknown kit: $kit (core admin analytics guide legal)"; exit 2; }
+  [ -d "$src" ] || { echo "✖ unknown kit: $kit (core admin analytics guide legal blog collection)"; exit 2; }
   if [ "$kit" = legal ] && [ "$FORCE" -eq 0 ]; then
     echo "✖ legal is an adapt-kit: read references/legal-rich-text.md, then re-run with --force"; exit 2
   fi

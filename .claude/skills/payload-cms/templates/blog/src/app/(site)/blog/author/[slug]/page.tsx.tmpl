@@ -1,0 +1,14 @@
+import { BlogAuthorView, getAuthorStaticParams, getAuthorPageMetadata } from "@/views/blog/blog-author";
+
+interface Props {
+  params: Promise<{ slug: string }>;
+}
+
+/** Every one prerendered at build; one published later renders on its first visit. */
+export const generateStaticParams = getAuthorStaticParams;
+
+export const generateMetadata = async ({ params }: Props) => getAuthorPageMetadata((await params).slug);
+
+export default async function BlogAuthorPage({ params }: Props) {
+  return <BlogAuthorView slug={(await params).slug} />;
+}

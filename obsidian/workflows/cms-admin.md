@@ -69,6 +69,8 @@ Kits are copied by `bash .claude/skills/payload-cms/scaffold.sh <kit…>`
 | "SEO in the admin" | `payload-cms` §3 |
 | "analytics in the admin" | `payload-analytics` |
 | "bold/links in the policy" | legal kit — `references/legal-rich-text.md` |
+| "add a blog / articles" | blog kit — `references/blog.md` |
+| "a page per location / service / integration" | collection kit — `references/collection-pages.md` (+ `local-seo` for locations) |
 
 ## Related
 

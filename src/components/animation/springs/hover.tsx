@@ -25,7 +25,7 @@
 "use client";
 
 import React from "react";
-import { animated, useSpring } from "@react-spring/web";
+import { animated, useSpring, type SpringConfig } from "@react-spring/web";
 import {
   CSSProperties,
   ElementType,
@@ -37,20 +37,20 @@ import {
   useRef,
   useState,
 } from "react";
-import { Tags } from "@/types/springs";
+import { SpringStyle, Tags, TriggerRef } from "@/types/springs";
 import { isMobileDisabled, springsConfig } from "@/lib/springs/config";
 import { useWindowWidth } from "@/hooks/use-window-size";
 
 type SpringProps = {
   children?: React.ReactNode;
   enabled?: boolean;
-  from?: Record<string, any>;
-  to?: Record<string, any>;
+  from?: SpringStyle;
+  to?: SpringStyle;
   style?: React.CSSProperties;
-  config?: Record<string, any>;
+  config?: SpringConfig;
   delayIn?: number;
   delayOut?: number;
-  trigger?: React.RefObject<any>;
+  trigger?: TriggerRef;
   disableOnMobile?: boolean;
   immediateOut?: boolean;
 } & React.HTMLAttributes<HTMLElement>;

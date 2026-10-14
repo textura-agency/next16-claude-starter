@@ -1,0 +1,89 @@
+// 📖 Docs: obsidian/backend/cms-payload.md
+/**
+ * The address fields every routed collection shares: a `slug` written from the
+ * title when left blank, and `previousSlugs` — every published address the
+ * document had before. The page route looks a missing slug up there and
+ * answers with a permanent redirect, so renaming a post never turns its
+ * backlinks and search listing into a 404.
+ *
+ * Shared by the blog and collection kits (`templates/cms-shared`, added with either).
+ */
+import type { CollectionBeforeChangeHook, Field } from "payload";
+
+import { slugify } from "../lexical";
+
+const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/** `slug` + the hidden `previousSlugs` list. `from` is the field the slug is written from. */
+export const slugFields = (from = "title"): Field[] => [
+  {
+    name: "slug",
+    type: "text",
+    label: "Address (slug)",
+    required: true,
+    unique: true,
+    index: true,
+    admin: {
+      position: "sidebar",
+      description:
+        "The last part of the page's address — lowercase words joined by hyphens. Blank: written from the title. Changing it later is safe: the old address redirects here.",
+    },
+    hooks: {
+      beforeValidate: [
+        ({ value, siblingData }) => {
+          const own = typeof value === "string" ? slugify(value) : "";
+          if (own) return own;
+          const source = siblingData?.[from];
+          return typeof source === "string" ? slugify(source) : value;
+        },
+      ],
+    },
+    validate: (value: unknown) =>
+      typeof value === "string" && SLUG.test(value)
+        ? true
+        : "Lowercase letters, digits and single hyphens only — e.g. how-we-work.",
+  },
+  {
+    name: "previousSlugs",
+    type: "array",
+    label: "Previous addresses",
+    admin: {
+      readOnly: true,
+      position: "sidebar",
+      initCollapsed: true,
+      description: "Kept automatically — each one redirects to the current address.",
+    },
+    fields: [{ name: "slug", type: "text", required: true }],
+  },
+];
+
+interface SlugDoc {
+  slug?: unknown;
+  _status?: unknown;
+  previousSlugs?: unknown;
+}
+
+/**
+ * Remembers a published document's old slug when the slug changes. A draft
+ * that was never published had no public address to keep.
+ */
+export const keepPreviousSlug: CollectionBeforeChangeHook = ({ data, originalDoc }) => {
+  const before = originalDoc as SlugDoc | undefined;
+  const next = data as SlugDoc;
+  const wasPublic = before?._status === undefined || before._status === "published";
+  if (
+    !before ||
+    !wasPublic ||
+    typeof before.slug !== "string" ||
+    typeof next.slug !== "string" ||
+    before.slug === next.slug
+  ) {
+    return data;
+  }
+  const kept = Array.isArray(before.previousSlugs)
+    ? (before.previousSlugs as { slug?: unknown }[]).flatMap((row) =>
+        typeof row.slug === "string" && row.slug !== next.slug ? [{ slug: row.slug }] : [],
+      )
+    : [];
+  return { ...data, previousSlugs: [...kept, { slug: before.slug }] };
+};

@@ -1,0 +1,27 @@
+// 📖 Docs: obsidian/backend/cms-payload.md
+/**
+ * The blog's own copy — the hub's heading and every label the post, topic and
+ * author pages print. Plain data like every mock, so it can become an admin
+ * global (`TEXT_GLOBALS` in `cms/globals.ts`, group *Blog*) and the views read
+ * it through `getText("blog")` the same way.
+ *
+ * PROJECT CONFIG: write the heading and intro for search — the hub should rank
+ * for the subject the blog covers, not for the word "blog".
+ */
+export const BLOG_COPY = {
+  heading: "TODO: What the blog covers, in the words people search",
+  intro:
+    "TODO: one or two sentences on who these articles are for and what they will learn.",
+  empty: "The first articles are on their way.",
+  topicsHeading: "Topics",
+  postsHeading: "All articles",
+  contents: "In this article",
+  published: "Published",
+  updated: "Updated",
+  minutes: "min read",
+  writtenBy: "Written by",
+  related: "Keep reading",
+  moreBy: "Articles by",
+  inTopic: "Articles on",
+  breadcrumb: "Breadcrumb",
+} as const;

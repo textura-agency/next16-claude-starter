@@ -102,7 +102,7 @@ const atBottom = (page) => page.evaluate(() => {
 // Bursts of about one viewport, then a short pause — how people read a page.
 async function scrollDown(page, device, cdp) {
   const { width: w, height: h } = device.viewport;
-  await waitUnlocked(page, 30_000).catch(() => {});
+  await waitUnlocked(page, 30_000).catch(() => undefined);
   let lastY = (await atBottom(page)).y, stall = 0, moved = false;
   const deadline = Date.now() + 150_000;
   if (device.input === "wheel") await page.mouse.move(w / 2, h / 2);
@@ -209,7 +209,7 @@ async function pointerPass(page, device, cdp, ms) {
   while (Date.now() < end) {
     const x = Math.round(w * (0.15 + 0.7 * ((i * 0.37) % 1))), y = Math.round(h * (0.2 + 0.6 * ((i * 0.61) % 1)));
     if (device.input === "wheel") await page.mouse.move(x, y, { steps: 12 });
-    else await cdp.send("Input.synthesizeScrollGesture", { x, y, xDistance: Math.round(w * 0.3), yDistance: 0, speed: 900, gestureSourceType: "touch", preventFling: true }).catch(() => {});
+    else await cdp.send("Input.synthesizeScrollGesture", { x, y, xDistance: Math.round(w * 0.3), yDistance: 0, speed: 900, gestureSourceType: "touch", preventFling: true }).catch(() => undefined);
     await sleep(120);
     i++;
   }
@@ -265,7 +265,7 @@ async function oneRun({ url, name, headless, readyTimeout, video, headers = {}, 
       const now = () => page.evaluate(() => performance.now());
       const hz = await page.evaluate(() => new Promise((res) => {
         const d = []; let last = performance.now();
-        const f = (t) => { d.push(t - last); last = t; d.length < 45 ? requestAnimationFrame(f) : res(d.sort((a, b) => a - b)[22]); };
+        const f = (t) => { d.push(t - last); last = t; if (d.length < 45) requestAnimationFrame(f); else res(d.sort((a, b) => a - b)[22]); };
         requestAnimationFrame(f);
       }));
       const coldA = await now(); await pointerPass(page, device, cdp, STATIC_PASS_MS); const coldB = await now();
@@ -299,7 +299,7 @@ async function oneRun({ url, name, headless, readyTimeout, video, headers = {}, 
 
     const hz = await page.evaluate(() => new Promise((res) => {
       const d = []; let last = performance.now();
-      const f = (t) => { d.push(t - last); last = t; d.length < 45 ? requestAnimationFrame(f) : res(d.sort((a, b) => a - b)[22]); };
+      const f = (t) => { d.push(t - last); last = t; if (d.length < 45) requestAnimationFrame(f); else res(d.sort((a, b) => a - b)[22]); };
       requestAnimationFrame(f);
     }));
 

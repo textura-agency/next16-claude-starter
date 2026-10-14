@@ -1,0 +1,53 @@
+// 📖 Docs: obsidian/backend/cms-payload.md
+/**
+ * A topic — `/blog/topic/<slug>`: the hub of one cluster. Its introduction,
+ * then every post filed under it. Below `BLOG.minTopicPosts` posts it is
+ * `noindex` and out of the sitemap — a one-post tag page is thin.
+ */
+import type { Metadata } from "next";
+import { notFound, permanentRedirect } from "next/navigation";
+
+import {
+  findMoved,
+  getPostsInTopic,
+  getTopic,
+  getTopicParams,
+  topicMetadata,
+  topicPath,
+  topicTrail,
+} from "@/cms/blog";
+import { JsonLd } from "@/components/common/json-ld";
+import { BLOG_COPY } from "@/data/mocks/blog";
+import { jsonLdGraph } from "@/utils/seo/structured-data";
+
+import { Archive } from "./archive";
+
+export const getTopicStaticParams = getTopicParams;
+
+export const getTopicPageMetadata = async (slug: string): Promise<Metadata> => {
+  const topic = await getTopic(slug);
+  if (!topic) return {};
+  return topicMetadata(topic, (await getPostsInTopic(topic.id)).length);
+};
+
+export const BlogTopicView = async ({ slug }: { slug: string }) => {
+  const topic = await getTopic(slug);
+  if (!topic) {
+    const moved = await findMoved("topics", slug);
+    if (moved) permanentRedirect(topicPath(moved));
+    notFound();
+  }
+  const posts = await getPostsInTopic(topic.id);
+  const trail = topicTrail(topic);
+
+  return (
+    <Archive
+      crumbs={trail.crumbs}
+      heading={topic.name}
+      intro={<p className="mt-4 max-w-[40rem] leading-relaxed opacity-80">{topic.intro}</p>}
+      listHeading={`${BLOG_COPY.inTopic} ${topic.name}`}
+      posts={posts}
+      jsonLd={<JsonLd data={jsonLdGraph(trail.node)} />}
+    />
+  );
+};

@@ -1,0 +1,226 @@
+// 📖 Docs: .claude/skills/payload-cms/references/collection-pages.md
+/**
+ * The data-driven pages, read from Payload — the pages themselves and what
+ * search reads about them: each page's `<head>`, its JSON-LD (breadcrumb, the
+ * Service or LocalBusiness its `kind` says, the questions it shows), the
+ * sitemap's entries and the `/llms.txt` lines. The quality bar
+ * (`entries-config.ts`) decides indexing in one place for all of them.
+ *
+ * Internal linking is built in, because a set of hundreds of pages only ranks
+ * as a set: every page links its hub (breadcrumb), the rest of its group
+ * ("More in …"), and the editor's related picks; the hub links every page.
+ */
+import "server-only";
+
+import type { Metadata } from "next";
+import { cache } from "react";
+import type { Where } from "payload";
+
+import type { Entry } from "@/payload-types";
+import type { OpeningHours } from "@/lib/site";
+import { generateMetadata } from "@/utils/seo/generate-page-metadata";
+import {
+  absoluteUrl,
+  getFaqStructuredData,
+  getLocalBusinessStructuredData,
+  getServiceStructuredData,
+  jsonLdGraph,
+  type JsonLdNode,
+} from "@/utils/seo/structured-data";
+
+import { dayOf, docOf, imageOf, safely, trailFor } from "./docs";
+import { ENTRIES, qualityOf } from "./entries-config";
+
+export { ENTRIES } from "./entries-config";
+
+export const entryPath = (slug: string) => `${ENTRIES.path}/${slug}`;
+
+/** Internal links inside rich text → their addresses (`components/cms/rich-text.tsx`). */
+export const ENTRY_HREFS = { entries: entryPath };
+
+/** The hub's heading for entries with no group. */
+export const NO_GROUP = "Other";
+
+const PUBLISHED: Where = { _status: { equals: "published" } };
+
+/** Every published entry, A–Z — the hub lists them all. */
+export const getEntries = cache(() =>
+  safely<Entry[]>("entries", [], async (payload) => {
+    const { docs } = await payload.find({
+      collection: "entries",
+      where: PUBLISHED,
+      sort: "title",
+      depth: 1,
+      pagination: false,
+    });
+    return docs;
+  }),
+);
+
+export const getEntry = cache((slug: string) =>
+  safely<Entry | null>(`entry "${slug}"`, null, async (payload) => {
+    const { docs } = await payload.find({
+      collection: "entries",
+      where: { and: [PUBLISHED, { slug: { equals: slug } }] },
+      depth: 2,
+      limit: 1,
+    });
+    return docs[0] ?? null;
+  }),
+);
+
+/** The current slug of an entry that used to live at `slug` (`fields/slug.ts`). */
+export const findMovedEntry = (slug: string) =>
+  safely<string | null>(`moved entry "${slug}"`, null, async (payload) => {
+    const { docs } = await payload.find({
+      collection: "entries",
+      where: { and: [PUBLISHED, { "previousSlugs.slug": { equals: slug } }] },
+      depth: 0,
+      limit: 1,
+    });
+    return docs[0]?.slug ?? null;
+  });
+
+export const getEntryParams = async () => (await getEntries()).map(({ slug }) => ({ slug }));
+
+// ── Indexing ───────────────────────────────────────────────────────────────
+
+const canonicalOf = (entry: Entry): string | undefined => entry.meta?.canonical?.trim() || undefined;
+
+/** Below the bar on its own content — words and facts — whatever the editor's switches say. */
+const isThin = (entry: Entry): boolean => !qualityOf({ body: entry.body, facts: entry.facts }).indexable;
+
+/** In the sitemap and `/llms.txt`: published, clears the bar, not hidden, not crediting another page. */
+export const isIndexable = (entry: Entry): boolean => qualityOf(entry).indexable;
+
+/** The entries of `entry`'s group, itself excluded — "More in …". */
+export const getSiblings = async (entry: Entry, limit = 6): Promise<Entry[]> =>
+  (await getEntries())
+    .filter((other) => other.id !== entry.id && (other.group ?? "") === (entry.group ?? ""))
+    .slice(0, limit);
+
+export const relatedOf = (entry: Entry): Entry[] =>
+  (entry.related ?? []).flatMap((related) => {
+    const doc = docOf<Entry>(related);
+    return doc && doc._status === "published" ? [doc] : [];
+  });
+
+/** Entries grouped for the hub, groups A–Z with "Other" last. */
+export const groupEntries = (entries: readonly Entry[]): [string, Entry[]][] => {
+  const groups = new Map<string, Entry[]>();
+  for (const entry of entries) {
+    const group = entry.group?.trim() || NO_GROUP;
+    groups.set(group, [...(groups.get(group) ?? []), entry]);
+  }
+  return [...groups].sort(([a], [b]) =>
+    a === NO_GROUP ? 1 : b === NO_GROUP ? -1 : a.localeCompare(b),
+  );
+};
+
+// ── What a page is, in search terms ────────────────────────────────────────
+
+export const entryTrail = (entry: Entry) =>
+  trailFor(ENTRIES.path, [{ label: entry.title, path: entryPath(entry.slug) }]);
+
+export const entryMetadata = (entry: Entry): Metadata => {
+  const image = imageOf(entry.meta?.image) ?? imageOf(entry.image);
+  return generateMetadata({
+    title: entry.meta?.title?.trim() || entry.title,
+    absoluteTitle: Boolean(entry.meta?.title?.trim()),
+    description: entry.meta?.description?.trim() || entry.summary,
+    url: canonicalOf(entry) ?? entryPath(entry.slug),
+    ...(image
+      ? {
+          ogImage: image.url,
+          ogImageAlt: image.alt,
+          ...(image.width && image.height ? { ogImageSize: { width: image.width, height: image.height } } : {}),
+        }
+      : {}),
+    // Thin or hidden → noindex. A page crediting another canonical stays
+    // indexable-in-principle and lets the canonical do the work.
+    noIndex: Boolean(entry.meta?.noIndex) || isThin(entry),
+  });
+};
+
+/** A location's opening hours in the shape the JSON-LD builder takes. */
+export const hoursOf = (entry: Entry): OpeningHours[] =>
+  (entry.place?.hours ?? []).flatMap(({ days, opens, closes }) =>
+    days && days.length > 0 && opens && closes ? [{ days, opens, closes }] : [],
+  );
+
+/** The page's subject as JSON-LD, by its kind — `null` for a plain page or an incomplete place. */
+const subjectOf = (entry: Entry): JsonLdNode | null => {
+  const path = entryPath(entry.slug);
+  const description = entry.meta?.description?.trim() || entry.summary;
+  const image = imageOf(entry.image)?.url;
+  if (entry.kind === "service") {
+    const areas = (entry.service?.areaServed ?? []).map(({ name }) => name);
+    return getServiceStructuredData({
+      path,
+      name: entry.title,
+      description,
+      ...(entry.service?.serviceType ? { serviceType: entry.service.serviceType } : {}),
+      ...(areas.length > 0 ? { areaServed: areas } : {}),
+    });
+  }
+  const place = entry.place;
+  if (entry.kind === "location" && place?.addressLocality && place.addressCountry) {
+    return getLocalBusinessStructuredData({
+      path,
+      name: entry.title,
+      address: {
+        addressLocality: place.addressLocality,
+        addressCountry: place.addressCountry,
+        ...(place.streetAddress ? { streetAddress: place.streetAddress } : {}),
+        ...(place.addressRegion ? { addressRegion: place.addressRegion } : {}),
+        ...(place.postalCode ? { postalCode: place.postalCode } : {}),
+      },
+      ...(place.telephone ? { telephone: place.telephone } : {}),
+      ...(place.email ? { email: place.email } : {}),
+      ...(typeof place.latitude === "number" && typeof place.longitude === "number"
+        ? { geo: { latitude: place.latitude, longitude: place.longitude } }
+        : {}),
+      openingHours: hoursOf(entry),
+      ...(place.priceRange ? { priceRange: place.priceRange } : {}),
+      ...(image ? { image } : {}),
+      ...(place.mapUrl ? { hasMap: place.mapUrl } : {}),
+      ...(place.businessType ? { type: place.businessType } : {}),
+    });
+  }
+  return null;
+};
+
+/** The page's one JSON-LD graph: breadcrumb, its subject, the questions it shows. */
+export const entryStructuredData = (entry: Entry): JsonLdNode => {
+  const subject = subjectOf(entry);
+  const faqs = (entry.faqs ?? []).map(({ question, answer }) => ({ question, answer }));
+  return jsonLdGraph(
+    entryTrail(entry).node,
+    ...(subject ? [subject] : []),
+    ...(faqs.length > 0 ? [getFaqStructuredData(entryPath(entry.slug), faqs)] : []),
+  );
+};
+
+// ── Sitemap, /llms.txt ─────────────────────────────────────────────────────
+
+/**
+ * The set's sitemap entries — indexable pages only, `lastmod` from the last
+ * save. Past ~45,000 pages, split the sitemap (`generateSitemaps`): one file
+ * holds 50,000 URLs at most.
+ */
+export const getEntriesSitemap = async (): Promise<{ path: string; lastModified?: string }[]> =>
+  (await getEntries()).filter(isIndexable).map((entry) => ({
+    path: entryPath(entry.slug),
+    ...(dayOf(entry.updatedAt) ? { lastModified: dayOf(entry.updatedAt) } : {}),
+  }));
+
+/**
+ * `/llms.txt`'s section for the set — a line per indexable page. A set of
+ * thousands lists the hub and its groups instead: `/llms.txt` is a map, not
+ * a dump.
+ */
+export const getEntriesLlmsLines = async (limit = 100): Promise<string[]> =>
+  (await getEntries())
+    .filter(isIndexable)
+    .slice(0, limit)
+    .map((entry) => `- [${entry.title}](${absoluteUrl(entryPath(entry.slug))}): ${entry.summary}`);

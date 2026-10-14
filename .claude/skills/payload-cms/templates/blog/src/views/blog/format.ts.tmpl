@@ -1,0 +1,10 @@
+// 📖 Docs: obsidian/backend/cms-payload.md
+import { siteConfig } from "@/lib/site";
+
+const DAY = new Intl.DateTimeFormat(siteConfig.locale.replace("_", "-"), {
+  dateStyle: "long",
+  timeZone: "UTC",
+});
+
+/** A Payload date as the reader's calendar day — "14 October 2026" in `en-GB`. */
+export const formatDay = (value: string): string => DAY.format(new Date(value));

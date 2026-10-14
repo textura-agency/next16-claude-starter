@@ -65,10 +65,10 @@ try {
       console.log(`  ✖ ${f.name.padEnd(15)} HUNG — ${e.message}. Find \`loop:\` springs / await-loops and gate them: loop: !useMotionOff()`);
     }
     forms.push(row);
-    page.close().catch(() => {});
+    page.close().catch(() => undefined);
   }
 } finally {
-  await browser.close().catch(() => {});
+  await browser.close().catch(() => undefined);
 }
 
 // The served HTML, as a crawler without JavaScript reads it.

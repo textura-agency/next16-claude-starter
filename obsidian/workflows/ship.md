@@ -12,7 +12,8 @@ note records the target, the budget and the deployment facts.
 
 1. `yarn lint` · `yarn build` · `.claude/scripts/verify.sh` — zero FAILs
 2. [[qa-verification]] across every route and breakpoint
-3. [[seo-aeo]] — indexability first, then metadata, structure, schema
+3. [[seo-aeo]] — indexability first, then metadata, structure, schema;
+   `qa:seo` on the deployed URL with zero FAILs
 4. The budget (below), **measured** in the order of [[testing-pipeline]] —
    Lighthouse PC + mobile (people + robot), the scroll test, the mobile/iOS
    probes, the axe sweep — [[optimize-load]], [[optimize-performance]],

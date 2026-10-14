@@ -1,6 +1,4 @@
-//@ts-nocheck
-
-const getElementCoords = (domElement) => {
+const getElementCoords = (domElement: Element | null | undefined) => {
   if (!domElement) {
     return {
       top: null,
@@ -21,7 +19,7 @@ const getElementCoords = (domElement) => {
   };
 };
 
-const getScrollCoordsFromElement = (domElement) => {
+const getScrollCoordsFromElement = (domElement: Element | null | undefined) => {
   const domElementCoords = getElementCoords(domElement);
   if (
     domElementCoords.top === null ||
@@ -88,7 +86,7 @@ const getScrollCoordsFromElement = (domElement) => {
   };
 };
 
-const isElementVisible = (domElement) => {
+const isElementVisible = (domElement: Element | null | undefined) => {
   const domElementCoords = getElementCoords(domElement);
   if (
     domElementCoords.top === null ||

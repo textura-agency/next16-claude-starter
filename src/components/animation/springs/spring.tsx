@@ -26,7 +26,7 @@
 
 "use client";
 
-import { animated, useSpring } from "@react-spring/web";
+import { animated, useSpring, type SpringConfig } from "@react-spring/web";
 import {
   CSSProperties,
   ElementType,
@@ -39,16 +39,16 @@ import {
 } from "react";
 import { isMobileDisabled, springsConfig } from "@/lib/springs/config";
 import { useWindowWidth } from "@/hooks/use-window-size";
-import { Tags } from "@/types/springs";
+import { SpringStyle, Tags } from "@/types/springs";
 
 type SpringProps = {
   children?: React.ReactNode;
   enabled?: boolean;
-  from?: Record<string, any>;
-  to?: Record<string, any>;
+  from?: SpringStyle;
+  to?: SpringStyle;
   mode?: "always" | "once" | "forward";
   style?: React.CSSProperties;
-  config?: Record<string, any>;
+  config?: SpringConfig;
   delayIn?: number;
   delayOut?: number;
   disableOnMobile?: boolean;
@@ -56,7 +56,7 @@ type SpringProps = {
 } & React.HTMLAttributes<HTMLElement>;
 
 export interface VarTextTagProps {
-  tag?: keyof Tags;
+  tag?: Tags;
   children: ReactNode;
   className?: string;
   style?: CSSProperties;
@@ -65,7 +65,6 @@ const AnimatedVarTextTag = forwardRef<HTMLElement, VarTextTagProps>(
   ({ tag = "span", children, className, style, ...props }, outerRef) => {
     const ref = useRef<HTMLElement | null>(null);
     useImperativeHandle(outerRef, () => ref.current as HTMLElement);
-    // @ts-expect-error
     const Tag = animated[tag] as ElementType;
 
     return (
@@ -169,7 +168,7 @@ export const Spring = forwardRef<HTMLElement, SpringProps & { tag?: Tags }>(
 
     return (
       <AnimatedVarTextTag
-        tag={Tag as any}
+        tag={Tag}
         ref={innerRef}
         style={{ ...springs, ...style }}
         {...props}

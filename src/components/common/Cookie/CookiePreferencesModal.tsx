@@ -56,13 +56,18 @@ export const CookiePreferencesModal = () => {
   const [analytics, setAnalytics] = useState<boolean>(consent?.analytics ?? true);
   const [marketing, setMarketing] = useState<boolean>(consent?.marketing ?? true);
 
-  // Re-seed local toggles every time the modal opens so users see their saved
-  // state, not whatever was in flight from a previous open.
-  useEffect(() => {
-    if (!open) return;
-    setAnalytics(consent?.analytics ?? true);
-    setMarketing(consent?.marketing ?? true);
-  }, [open, consent]);
+  // Re-seed local toggles every time the modal opens (or the saved choice
+  // changes while it is open) so users see their saved state, not whatever was
+  // in flight from a previous open. Adjusted during render, not in an effect —
+  // no extra commit with stale toggles.
+  const [seeded, setSeeded] = useState({ open, consent });
+  if (seeded.open !== open || seeded.consent !== consent) {
+    setSeeded({ open, consent });
+    if (open) {
+      setAnalytics(consent?.analytics ?? true);
+      setMarketing(consent?.marketing ?? true);
+    }
+  }
 
   // ESC closes; lock Lenis scroll while open; restore focus to the opener.
   const triggerRef = useRef<Element | null>(null);

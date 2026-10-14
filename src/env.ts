@@ -42,6 +42,13 @@ const serverSchema = z.object({
   VERCEL_PROJECT_PRODUCTION_URL: optionalString(),
   /** `production` | `preview` | `development` on Vercel builds (system variable). */
   VERCEL_ENV: optionalString(),
+  /**
+   * Search Console's HTML-tag verification code (the `content` value only).
+   * Renders `<meta name="google-site-verification">` — see `src/lib/site.ts`.
+   */
+  GOOGLE_SITE_VERIFICATION: optionalString(),
+  /** Bing Webmaster Tools' code — renders `<meta name="msvalidate.01">`. */
+  BING_SITE_VERIFICATION: optionalString(),
 });
 
 /** Public env — safe to read anywhere (server or client). */
@@ -60,6 +67,8 @@ export function getServerEnv() {
     CONTACT_ENDPOINT: process.env.CONTACT_ENDPOINT,
     VERCEL_PROJECT_PRODUCTION_URL: process.env.VERCEL_PROJECT_PRODUCTION_URL,
     VERCEL_ENV: process.env.VERCEL_ENV,
+    GOOGLE_SITE_VERIFICATION: process.env.GOOGLE_SITE_VERIFICATION,
+    BING_SITE_VERIFICATION: process.env.BING_SITE_VERIFICATION,
   });
   return cachedServerEnv;
 }

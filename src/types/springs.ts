@@ -1,3 +1,14 @@
+import type { RefObject } from "react";
+
+/**
+ * The style values a spring component moves — its `from` / `to`
+ * (`{ opacity: 0, y: 24 }`, `{ clipPath: "inset(0 0 100% 0)" }`).
+ */
+export type SpringStyle = Record<string, string | number>;
+
+/** An element ref a spring may watch instead of its own node (`trigger`). */
+export type TriggerRef = RefObject<HTMLElement | null>;
+
 export type Tags =
   | "div"
   | "span"

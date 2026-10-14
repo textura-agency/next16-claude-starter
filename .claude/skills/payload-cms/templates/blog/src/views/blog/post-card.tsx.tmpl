@@ -1,0 +1,50 @@
+// 📖 Docs: obsidian/backend/cms-payload.md
+/**
+ * One post in a list — the hub, a topic, an author, "keep reading". An
+ * `<article>` whose heading is the link: the anchor text is the post's title,
+ * the most descriptive internal link a page can carry. `level` keeps the
+ * heading outline clean wherever the list sits.
+ */
+import Image from "next/image";
+import Link from "next/link";
+
+import { imageOf } from "@/cms/docs";
+import { lastChanged, postPath } from "@/cms/blog";
+import type { Post } from "@/payload-types";
+
+import { formatDay } from "./format";
+
+interface PostCardProps {
+  post: Post;
+  level?: "h2" | "h3";
+}
+
+export const PostCard = ({ post, level: Heading = "h2" }: PostCardProps) => {
+  const cover = imageOf(post.cover);
+  return (
+    <article className="flex flex-col gap-3">
+      {cover?.width && cover.height ? (
+        <Image
+          src={cover.url}
+          alt={cover.alt}
+          width={cover.width}
+          height={cover.height}
+          sizes="(min-width: 48rem) 24rem, 100vw"
+          className="aspect-video h-auto w-full object-cover"
+        />
+      ) : null}
+      <Heading className="text-xl font-medium leading-display">
+        <Link
+          href={postPath(post.slug)}
+          className="transition-opacity duration-[var(--duration-fast)] ease-entrance hover:opacity-70 focus-visible:opacity-70"
+        >
+          {post.title}
+        </Link>
+      </Heading>
+      <p className="leading-relaxed opacity-80">{post.excerpt}</p>
+      <time dateTime={lastChanged(post)} className="text-sm opacity-60">
+        {formatDay(post.revisedAt ?? post.publishedAt)}
+      </time>
+    </article>
+  );
+};

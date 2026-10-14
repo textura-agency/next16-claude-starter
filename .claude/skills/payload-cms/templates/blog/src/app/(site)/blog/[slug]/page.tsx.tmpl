@@ -1,0 +1,14 @@
+import { BlogPostView, getPostStaticParams, getPostPageMetadata } from "@/views/blog/blog-post";
+
+interface Props {
+  params: Promise<{ slug: string }>;
+}
+
+/** Every one prerendered at build; one published later renders on its first visit. */
+export const generateStaticParams = getPostStaticParams;
+
+export const generateMetadata = async ({ params }: Props) => getPostPageMetadata((await params).slug);
+
+export default async function BlogPostPage({ params }: Props) {
+  return <BlogPostView slug={(await params).slug} />;
+}

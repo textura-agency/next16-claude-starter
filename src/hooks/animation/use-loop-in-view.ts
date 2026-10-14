@@ -18,7 +18,7 @@ import { useEffect, useRef } from "react";
 import { useLoop, LoopProps } from "./use-render-loop";
 
 export const useLoopInView = (
-  ref: React.RefObject<HTMLDivElement>,
+  ref: React.RefObject<Element | null>,
   onRender: (time: number) => void,
   props: LoopProps = {},
 ) => {

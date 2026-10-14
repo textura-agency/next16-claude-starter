@@ -149,7 +149,7 @@ try {
   await wait(Number(o.wait));
   // Dismiss a consent banner the way a reader would (it can cover the scene).
   const reject = page.getByRole("button", { name: /reject|decline|only necessary|accept/i });
-  if (await reject.count()) await reject.first().click({ timeout: 2000 }).catch(() => {});
+  if (await reject.count()) await reject.first().click({ timeout: 2000 }).catch(() => undefined);
   await wait(600);
   const first = await check("baseline");
   const s0 = await scrollState(page);
@@ -232,7 +232,7 @@ try {
   result.failures.push({ label: "probe error", reasons: [e.message] });
   console.log(`  ✖ ${e.message}`);
 } finally {
-  await browser.close().catch(() => {});
+  await browser.close().catch(() => undefined);
 }
 
 result.console = logs.slice(-40);

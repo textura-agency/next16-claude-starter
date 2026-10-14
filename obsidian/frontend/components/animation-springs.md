@@ -1,6 +1,6 @@
 ---
 tags: [frontend, animation, stable, do-not-modify]
-updated: 2026-07-17
+updated: 2026-10-14
 ---
 
 # Catalog — Spring Components
@@ -10,6 +10,11 @@ Conceptual overview: [[animation-system]].
 
 All components accept `tag` (semantic HTML element), `className`, and react-spring
 `config`. Each is `"use client"`.
+
+Prop types (`src/types/springs.ts`): `from` / `to` are `SpringStyle`
+(`Record<string, string | number>`), `config` is react-spring's `SpringConfig`,
+`trigger` is a `TriggerRef` (`RefObject<HTMLElement | null>`), `tag` is `Tags`.
+No `any` — typed with sign-off in ADR-0030 (types only, no behaviour change).
 
 ## `<Inview>` — `in-view.tsx`
 
@@ -59,7 +64,8 @@ is always `true`). `trigger` lets a different element fire the hover.
 ## `<Handle>` — `handle.tsx`
 
 Smooth enter/exit when `children` change — caches previous content during the
-transition. Configurable `from`/`to`, `delayIn`/`delayOut`, `enabled`.
+transition. Configurable `from`/`to`, `delayIn`/`delayOut`, `enabled`, and
+`tag` (rendered since 2026-10-14 — it used to be ignored; default `div`).
 
 ## `<AnimatedVarTextTag>` — `animated-var-text-tag.tsx`
 

@@ -22,6 +22,8 @@
     "qa:brand": "node tools/qa/brand-kit.mjs",
     "qa:webkit": "node tools/qa/webkit-probe.mjs",
     "qa:shots": "node tools/qa/admin-shots.mjs",
+    "qa:seo": "node tools/qa/seo-crawl.mjs",
+    "seo:grow": "node tools/qa/gsc-grow.mjs",
     "verify": "bash .claude/scripts/verify.sh"
   },
   "dependencies": {

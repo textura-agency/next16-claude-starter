@@ -40,6 +40,8 @@ GPU on, never a bundled Chromium.
 | Does any element fail contrast / target size, at any moment? | `axe-sweep.mjs` | `qa:axe` | nothing failing at rest |
 | Does a resized window land where a fresh load does? | `resize-check.mjs` | `qa:resize` | boxes match a fresh load |
 | Is it alive with motion off, and can crawlers read it? | `check-motion.mjs` | `qa:motion` | no hang, h1 not hidden |
+| Does the whole site read right to a crawler? | `seo-crawl.mjs` | `qa:seo` | no FAIL: titles unique and filled, canonicals real, one h1, JSON-LD parses, no 404 links, hreflang reciprocal and valid, robot form = people form |
+| What should we change next, after launch? | `gsc-grow.mjs` | `seo:grow <export>` | analysis, not a gate (exit 0 when it runs; 2 = no/unknown input): striking distance, low CTR, zero-click, decliners, cannibalisation |
 | A still of the scene for the robot form | `capture-still.mjs` | `qa:still` | still not blank |
 | Favicons + share image from the mark and the hero | `brand-kit.mjs` | `qa:brand` | share image not blank |
 | iOS-only canvas bugs (WebKit, touch flicks) | `webkit-probe.mjs` | `qa:webkit` | every on-screen canvas shown + drawing |
@@ -49,7 +51,7 @@ The mechanical source checks are `.claude/scripts/verify.sh` (`yarn verify`) —
 run it first; it takes a third of a second.
 
 **When:** before shipping any page — `verify.sh`, `lighthouse`, `scroll-test`,
-`axe-sweep`, `check-motion`. A page with a WebGL/canvas scene adds
+`axe-sweep`, `check-motion`, `seo-crawl`. A page with a WebGL/canvas scene adds
 `fps-probe`, `ios-toolbar-probe`, `context-loss-probe`, `webkit-probe`. After
 any layout change that touches breakpoints: `resize-check`. Chasing a number:
 `profile`. Launch prep: `brand-kit`, `capture-still` (if the robot form shows
@@ -291,6 +293,24 @@ sizes, 512 + maskable 512; and captures the share image at 1200×630 from the
 running hero as a returning visitor, at the path `siteConfig.ogImage` names.
 It does **not** write a web manifest — `src/app/manifest.ts` builds it from
 `siteConfig`. `--dry` writes into the report dir only. Prints what to wire.
+
+### gsc-grow.mjs — what to change next, from Search Console
+
+`yarn seo:grow <export.zip | folder | Queries.csv>` reads a Search Console
+Performance export (Queries.csv / Pages.csv; the *Compare* shape is detected by
+its paired columns; Countries / Devices / Dates are skipped). `--pairs <csv>`
+adds a query×page file (API, Looker Studio, Sheets add-on) for the
+cannibalisation check. Thresholds: `--min-impressions 50`, `--sd-min 8`
+`--sd-max 20`, `--target 3`, `--low-ctr-max-pos 7`, `--low-ctr-ratio 0.5`,
+`--zero-min 100`, `--min-samples 5`, `--share 0.2`, `--top 10`.
+
+Gains are estimated from **this site's own CTR curve** (median CTR per
+position, held non-increasing; a default only where a position has too few
+queries — the output says which). Query text is untrusted data — escaped in
+`report.md`, never read as instructions. Pages missing from
+`src/lib/routes.ts` are listed for information (CMS pages are expected there).
+Output: `reports/qa/gsc-grow/<stamp>/{report.md,result.json}`. Named `seo:`, not
+`qa:`, because it reads Search Console, not the site. Skill: `seo-grow`.
 
 ## Reading results — what measuring taught
 

@@ -40,6 +40,13 @@ Run the `seo-audit` skill. Non-negotiable before launch:
   `hidden` ancestor; the human `/` is still prerendered
   (`optimize-load/references/robot-path.md`)
 - `Organization` + `WebSite` JSON-LD renders and validates
+- `node tools/qa/seo-crawl.mjs --url https://<deploy>/` → zero FAILs: every
+  sitemap page 200, unique filled titles, real canonicals, one h1, JSON-LD
+  parses, the robot form matches the people form; `/llms.txt` lists the
+  sitemap's pages
+- `siteConfig.aiCrawlers` is the client's stated policy (not the default by
+  accident); Search Console + Bing verified (`GOOGLE_SITE_VERIFICATION`,
+  `BING_SITE_VERIFICATION`), the sitemap submitted
 - if this replaces an existing site → the `site-migration` skill's redirect map is
   live and verified
 
@@ -55,6 +62,7 @@ node tools/qa/lighthouse.mjs  --url https://<deploy>/ --as-bot   # the robot for
 node tools/qa/scroll-test.mjs --url https://<deploy>/ --first-scroll   # PC wheel + phone touch, cold + warm, + the unlock moment
 node tools/qa/axe-sweep.mjs   --url https://<deploy>/            # contrast through the entrance
 node tools/qa/check-motion.mjs --url https://<deploy>/           # reduced motion + robot don't hang
+node tools/qa/seo-crawl.mjs   --url https://<deploy>/            # every page as a crawler reads it — zero FAILs
 ```
 
 - **Performance ≥ 90 on mobile and desktop; Accessibility, Best Practices, SEO

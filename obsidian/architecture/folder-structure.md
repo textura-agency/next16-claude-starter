@@ -82,6 +82,7 @@ src/
 │   ├── api/                # API route-handler helpers (handle, ApiError)
 │   ├── api-client.ts       # Typed same-origin /api fetch wrapper (client)
 │   ├── scene/              # per-frame.ts · webgl-context.ts · device-tilt.ts — [[webgl-scenes]]
+│   ├── routes.ts           # Route registry — sitemap, /llms.txt, breadcrumbs read it (client-safe)
 │   ├── site.ts             # Site-wide SEO config (single source of truth, server-only)
 │   └── springs/config.ts   # Global animation config
 │

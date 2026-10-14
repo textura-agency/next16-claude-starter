@@ -1,0 +1,58 @@
+// 📖 Docs: obsidian/backend/cms-payload.md
+/**
+ * `/blog/feed.xml` — RSS 2.0 of the newest indexable posts. Feed readers,
+ * aggregators and some AI crawlers discover new posts here faster than
+ * through the sitemap; the hub links it (`<link rel="alternate">`). Same list
+ * and same summaries as `/llms.txt` (`getFeedPosts`).
+ */
+import { BLOG, getFeedPosts, postPath } from "@/cms/blog";
+import { absoluteUrl } from "@/utils/seo/structured-data";
+import { BLOG_COPY } from "@/data/mocks/blog";
+import { siteConfig } from "@/lib/site";
+
+/** Rebuilt at most hourly; a post save drops it at once (`collection-hooks.ts`). */
+export const revalidate = 3600;
+
+const escape = (text: string): string =>
+  text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+
+export const GET = async (): Promise<Response> => {
+  const posts = await getFeedPosts();
+  const feedUrl = absoluteUrl(`${BLOG.path}/feed.xml`);
+
+  const items = posts.map((post) => {
+    const url = absoluteUrl(postPath(post.slug));
+    return [
+      "    <item>",
+      `      <title>${escape(post.title)}</title>`,
+      `      <link>${url}</link>`,
+      `      <guid isPermaLink="true">${url}</guid>`,
+      `      <pubDate>${new Date(post.publishedAt).toUTCString()}</pubDate>`,
+      `      <description>${escape(post.excerpt)}</description>`,
+      "    </item>",
+    ].join("\n");
+  });
+
+  const body = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">',
+    "  <channel>",
+    `    <title>${escape(`${BLOG_COPY.heading} · ${siteConfig.name}`)}</title>`,
+    `    <link>${absoluteUrl(BLOG.path)}</link>`,
+    `    <description>${escape(BLOG_COPY.intro)}</description>`,
+    `    <language>${siteConfig.locale.replace("_", "-")}</language>`,
+    `    <atom:link href="${feedUrl}" rel="self" type="application/rss+xml"/>`,
+    ...items,
+    "  </channel>",
+    "</rss>",
+    "",
+  ].join("\n");
+
+  return new Response(body, {
+    headers: { "Content-Type": "application/rss+xml; charset=utf-8" },
+  });
+};

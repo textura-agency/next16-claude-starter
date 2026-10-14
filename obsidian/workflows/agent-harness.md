@@ -70,6 +70,9 @@ tools/qa/              # browser tools: Lighthouse, scroll test, phone probes, a
 | `seo-audit` | SEO health check or launch prep | [[seo-aeo]] |
 | `schema-markup` | structured data | [[seo-aeo]] |
 | `aeo-visibility` | AI/answer-engine visibility | [[seo-aeo]] |
+| `local-seo` | a business people visit or that serves an area — Business Profile, NAP, LocalBusiness, location pages | [[seo-aeo]] |
+| `i18n-seo` | more than one language or market — `app/[lang]`, hreflang, the proxy per locale | [[seo-aeo]] |
+| `seo-grow` | after launch, from a Search Console export — what to change next, then re-measure | [[seo-aeo]] |
 | `site-migration` | rebuilding an existing live site | [[site-migration]] |
 | `ship-check` | pre-launch gate | [[ship]] |
 | `optimize-load` | Lighthouse scores, Core Web Vitals, "get it in the green" | [[optimize-load]] |
@@ -91,7 +94,7 @@ measured history of 50+ sites built from this starter.
 
 ## Commands
 
-`/new-page` · `/section` · `/qa` · `/ship` · `/cms` · `/db` · `/seo` · `/migrate-site` · `/perf` · `/load` · `/mobile`
+`/new-page` · `/section` · `/qa` · `/ship` · `/cms` · `/db` · `/seo` · `/seo-grow` · `/migrate-site` · `/perf` · `/load` · `/mobile`
 
 ## QA tools
 
@@ -107,6 +110,8 @@ measured history of 50+ sites built from this starter.
 | `qa:axe` | `axe-sweep.mjs` | contrast + target size every ~120 ms through the entrance |
 | `qa:resize` | `resize-check.mjs` | live resize, device mode, rotation vs a fresh load |
 | `qa:motion` | `check-motion.mjs` | responsiveness under reduced motion and on the robot form |
+| `qa:seo` | `seo-crawl.mjs` | the whole site's served HTML: robots/sitemap/llms.txt agree, title/description/canonical/h1/JSON-LD values, duplicates, orphans, depth, hreflang (reciprocal, valid, self + x-default), people vs robot parity |
+| `seo:grow` | `gsc-grow.mjs` | a Search Console export, not the site: the site's own CTR curve, striking distance (8–20), low CTR for the rank, zero-click pages, decliners (Compare export), cannibalisation (`--pairs`) — analysis, never a gate |
 | — | `capture-still.mjs` | the scene's still (robot form, share card, phone stills) |
 | `qa:brand` | `brand-kit.mjs` | favicon set, manifest, 1200 × 630 share image, head check |
 | `qa:webkit` | `webkit-probe.mjs` | the probes in WebKit with an iPhone profile |

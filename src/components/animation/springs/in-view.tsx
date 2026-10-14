@@ -29,19 +29,16 @@
 
 "use client";
 
-import { animated, useSpring } from "@react-spring/web";
+import { useSpring, type SpringConfig } from "@react-spring/web";
 import {
-  CSSProperties,
-  ElementType,
   forwardRef,
-  ReactNode,
   useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
 } from "react";
 import { useDynamicInView } from "@/hooks/animation/use-dynamic-in-view";
-import { Tags } from "@/types/springs";
+import { SpringStyle, Tags, TriggerRef } from "@/types/springs";
 import { isMobileDisabled, springsConfig } from "@/lib/springs/config";
 import { useWindowWidth } from "@/hooks/use-window-size";
 import { AnimatedVarTextTag } from "./animated-var-text-tag";
@@ -49,16 +46,16 @@ import { AnimatedVarTextTag } from "./animated-var-text-tag";
 type SpringProps = {
   children?: React.ReactNode;
   enabled?: boolean;
-  from?: Record<string, any>;
-  to?: Record<string, any>;
+  from?: SpringStyle;
+  to?: SpringStyle;
   mode?: "always" | "once" | "forward";
   style?: React.CSSProperties;
-  config?: Record<string, any>;
+  config?: SpringConfig;
   delayIn?: number;
   delayOut?: number;
   innerClassName?: string;
   innerTag?: Tags;
-  trigger?: React.RefObject<HTMLElement>;
+  trigger?: TriggerRef;
   disableOnMobile?: boolean;
   immediateOut?: boolean;
 } & React.HTMLAttributes<HTMLElement>;

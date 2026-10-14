@@ -23,12 +23,12 @@
 import { memo, useEffect, useRef, useState } from "react";
 import { useSpring, SpringConfig, config as _config } from "@react-spring/web";
 import { AnimatedVarTextTag } from "./animated-var-text-tag";
-import { Tags } from "@/types/springs";
+import { SpringStyle, Tags } from "@/types/springs";
 
 interface SmoothRerenderProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
-  from?: Record<string, any>;
-  to?: Record<string, any>;
+  from?: SpringStyle;
+  to?: SpringStyle;
   delayIn?: number;
   delayOut?: number;
   config?: SpringConfig;
@@ -135,7 +135,7 @@ export const Handle = memo(
     }, []);
 
     return (
-      <AnimatedVarTextTag tag="div" style={{ ...springs }} {...props}>
+      <AnimatedVarTextTag tag={tag} style={{ ...springs }} {...props}>
         {cachedChildren}
       </AnimatedVarTextTag>
     );

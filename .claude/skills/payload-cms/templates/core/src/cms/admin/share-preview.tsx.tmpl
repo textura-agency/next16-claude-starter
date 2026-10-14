@@ -43,28 +43,27 @@ const uploadId = (value: unknown): number | string | undefined => {
 /** The upload behind an id — `null` while it is being read or when there is none. */
 const useUpload = (id: number | string | undefined): Upload | null => {
   const { config } = useConfig();
-  const [upload, setUpload] = useState<Upload | null>(null);
+  // Keyed by the id it was read for: a changed or cleared id shows nothing
+  // until its own read lands — no setState outside the fetch's callback.
+  const [read, setRead] = useState<{ id: number | string; upload: Upload | null } | null>(null);
   useEffect(() => {
-    if (id === undefined) {
-      setUpload(null);
-      return;
-    }
+    if (id === undefined) return;
     let live = true;
     fetch(`${config.serverURL}${config.routes.api}/media/${id}`, { credentials: "include" })
       .then((response) => (response.ok ? response.json() : null))
       .then((doc: unknown) => {
-        if (!live || typeof doc !== "object" || doc === null) return;
-        const { url, alt } = doc as { url?: unknown; alt?: unknown };
-        setUpload(typeof url === "string" ? { url, alt: typeof alt === "string" ? alt : "" } : null);
+        if (!live) return;
+        const { url, alt } = (typeof doc === "object" && doc !== null ? doc : {}) as { url?: unknown; alt?: unknown };
+        setRead({ id, upload: typeof url === "string" ? { url, alt: typeof alt === "string" ? alt : "" } : null });
       })
       .catch(() => {
-        if (live) setUpload(null);
+        if (live) setRead({ id, upload: null });
       });
     return () => {
       live = false;
     };
   }, [id, config.serverURL, config.routes.api]);
-  return upload;
+  return id !== undefined && read?.id === id ? read.upload : null;
 };
 
 export const SharePreview = ({ page, path }: SharePreviewProps) => {

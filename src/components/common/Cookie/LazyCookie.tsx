@@ -13,21 +13,23 @@
  * `globals.css`).
  */
 
-import { useLayoutEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 import { isRobotView } from "@/components/common/robot-view";
 
 import { Cookie } from "./Cookie";
 
+/** The marker is fixed for the page's life — nothing to subscribe to. */
+const subscribeNever = () => () => undefined;
+const notRobot = () => false;
+
 export function LazyCookie() {
-  // Robots get no consent banner: there is no visitor to ask. Decided in a
-  // layout effect, after hydration — returning null on the first render would
-  // not match the served banner (React #418) — from the server's marker,
-  // because this layout renders before the page's robot module runs. Until
-  // then `globals.css` keeps the served copy from painting.
-  const [robot, setRobot] = useState(false);
-  useLayoutEffect(() => {
-    if (isRobotView()) setRobot(true);
-  }, []);
+  // Robots get no consent banner: there is no visitor to ask. Read from the
+  // server's marker, which never changes on a page: the server snapshot
+  // (`false`) is used while hydrating — returning null on the first render
+  // would not match the served banner (React #418) — and React re-renders
+  // with the client's answer straight after, before paint. Until then
+  // `globals.css` keeps the served copy from painting.
+  const robot = useSyncExternalStore(subscribeNever, isRobotView, notRobot);
   return robot ? null : <Cookie />;
 }

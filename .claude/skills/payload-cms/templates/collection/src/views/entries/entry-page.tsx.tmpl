@@ -1,0 +1,216 @@
+// 📖 Docs: .claude/skills/payload-cms/references/collection-pages.md
+/**
+ * One data-driven page — `/entries/<slug>`. The same template for every page;
+ * what differs is the data, and the page shows all of it as HTML a crawler
+ * reads without JavaScript: the trail, one `<h1>`, the summary, the facts as a
+ * definition list, a location's address / phone / hours (an `<address>`, a
+ * `tel:` link, a link to its map listing — never an embedded map, which costs
+ * the load score), the body, the questions (native `<details>`, no script),
+ * then the links that make the set rank together — "More in <group>", the
+ * editor's related picks, and the hub.
+ *
+ * An old slug answers 308 to the new address; an unknown one is a real 404.
+ */
+import type { Metadata } from "next";
+import Image from "next/image";
+import Link from "next/link";
+import { notFound, permanentRedirect } from "next/navigation";
+
+import { imageOf } from "@/cms/docs";
+import {
+  ENTRIES,
+  ENTRY_HREFS,
+  entryMetadata,
+  entryPath,
+  entryStructuredData,
+  entryTrail,
+  findMovedEntry,
+  getEntry,
+  getEntryParams,
+  getSiblings,
+  hoursOf,
+  NO_GROUP,
+  relatedOf,
+} from "@/cms/entries";
+import { Breadcrumbs } from "@/components/cms/breadcrumbs";
+import { RichText } from "@/components/cms/rich-text";
+import { JsonLd } from "@/components/common/json-ld";
+import { ENTRIES_COPY } from "@/data/mocks/entries";
+import type { Entry } from "@/payload-types";
+
+export const getEntryStaticParams = getEntryParams;
+
+export const getEntryPageMetadata = async (slug: string): Promise<Metadata> => {
+  const entry = await getEntry(slug);
+  return entry ? entryMetadata(entry) : {};
+};
+
+const linkClass =
+  "underline underline-offset-4 transition-opacity duration-[var(--duration-fast)] ease-entrance hover:opacity-70 focus-visible:opacity-70";
+
+const LinkList = ({ id, heading, entries }: { id: string; heading: string; entries: readonly Entry[] }) =>
+  entries.length === 0 ? null : (
+    <section aria-labelledby={id} className="mt-12">
+      <h2 id={id} className="text-2xl font-medium leading-display">
+        {heading}
+      </h2>
+      <ul className="mt-4 grid gap-4 md:grid-cols-2">
+        {entries.map((entry) => (
+          <li key={entry.id}>
+            <Link href={entryPath(entry.slug)} className={`${linkClass} font-medium`}>
+              {entry.title}
+            </Link>
+            <p className="mt-1 text-sm leading-relaxed opacity-80">{entry.summary}</p>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+
+export const EntryView = async ({ slug }: { slug: string }) => {
+  const entry = await getEntry(slug);
+  if (!entry) {
+    const moved = await findMovedEntry(slug);
+    if (moved) permanentRedirect(entryPath(moved));
+    notFound();
+  }
+
+  const siblings = await getSiblings(entry);
+  const related = relatedOf(entry).filter((item) => !siblings.some((sibling) => sibling.id === item.id));
+  const image = imageOf(entry.image);
+  const facts = entry.facts ?? [];
+  const faqs = entry.faqs ?? [];
+  const place = entry.kind === "location" ? entry.place : undefined;
+  const hours = hoursOf(entry);
+
+  return (
+    <div className="min-h-lvh w-full bg-background font-sans text-foreground">
+      <JsonLd data={entryStructuredData(entry)} />
+      <header className="mx-auto w-full max-w-[48rem] px-4 pb-8 pt-24 md:px-6 md:pt-28 xl:px-8">
+        <Breadcrumbs crumbs={entryTrail(entry).crumbs} label={ENTRIES_COPY.breadcrumb} />
+        <h1 className="mt-6 text-4xl font-medium leading-display">{entry.title}</h1>
+        <p className="mt-4 text-lg leading-relaxed opacity-80">{entry.summary}</p>
+      </header>
+
+      <main className="mx-auto w-full max-w-[48rem] px-4 pb-24 md:px-6 xl:px-8">
+        {image?.width && image.height ? (
+          <Image
+            src={image.url}
+            alt={image.alt}
+            width={image.width}
+            height={image.height}
+            sizes="(min-width: 48rem) 48rem, 100vw"
+            priority
+            className="mb-10 h-auto w-full"
+          />
+        ) : null}
+
+        {facts.length > 0 && (
+          <section aria-labelledby="entry-facts">
+            <h2 id="entry-facts" className="text-2xl font-medium leading-display">
+              {ENTRIES_COPY.facts}
+            </h2>
+            <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-6 gap-y-2">
+              {facts.map((fact) => (
+                <div key={fact.id ?? fact.label} className="contents">
+                  <dt className="opacity-80">{fact.label}</dt>
+                  <dd className="font-medium">{fact.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        )}
+
+        {place && (
+          <section aria-label={entry.title} className="mt-10 grid gap-6 md:grid-cols-2">
+            <div>
+              <h2 className="text-lg font-medium">{ENTRIES_COPY.address}</h2>
+              <address className="mt-2 not-italic leading-relaxed">
+                {[place.streetAddress, place.addressLocality, place.addressRegion, place.postalCode]
+                  .filter(Boolean)
+                  .map((line) => (
+                    <span key={line} className="block">
+                      {line}
+                    </span>
+                  ))}
+                {place.telephone && (
+                  <span className="mt-2 block">
+                    {ENTRIES_COPY.phone}:{" "}
+                    <a href={`tel:${place.telephone.replace(/\s+/g, "")}`} className={linkClass}>
+                      {place.telephone}
+                    </a>
+                  </span>
+                )}
+                {place.email && (
+                  <span className="block">
+                    {ENTRIES_COPY.email}:{" "}
+                    <a href={`mailto:${place.email}`} className={linkClass}>
+                      {place.email}
+                    </a>
+                  </span>
+                )}
+              </address>
+              {place.mapUrl && (
+                <p className="mt-3">
+                  <a href={place.mapUrl} className={linkClass} rel="noopener" target="_blank">
+                    {ENTRIES_COPY.map}
+                  </a>
+                </p>
+              )}
+            </div>
+            {hours.length > 0 && (
+              <div>
+                <h2 className="text-lg font-medium">{ENTRIES_COPY.hours}</h2>
+                <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-6 gap-y-1">
+                  {hours.map((row) => (
+                    <div key={`${row.days.join()}-${row.opens}`} className="contents">
+                      <dt>{row.days.join(", ")}</dt>
+                      <dd>
+                        <time dateTime={row.opens}>{row.opens}</time>–<time dateTime={row.closes}>{row.closes}</time>
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            )}
+          </section>
+        )}
+
+        {entry.body ? (
+          <div className="mt-10">
+            {/* Body typography: style the rich text's elements in globals.css under `.prose-cms`. */}
+            <RichText data={entry.body} hrefs={ENTRY_HREFS} className="prose-cms" />
+          </div>
+        ) : null}
+
+        {faqs.length > 0 && (
+          <section aria-labelledby="entry-questions" className="mt-12">
+            <h2 id="entry-questions" className="text-2xl font-medium leading-display">
+              {ENTRIES_COPY.questions}
+            </h2>
+            {/* `<details>` keeps every answer in the HTML — crawlers read it closed. */}
+            {faqs.map((faq) => (
+              <details key={faq.id ?? faq.question} className="mt-4 border-b pb-4">
+                <summary className="cursor-pointer font-medium">{faq.question}</summary>
+                <p className="mt-2 leading-relaxed opacity-80">{faq.answer}</p>
+              </details>
+            ))}
+          </section>
+        )}
+
+        <LinkList
+          id="entry-siblings"
+          heading={`${ENTRIES_COPY.moreIn} ${entry.group?.trim() || NO_GROUP}`}
+          entries={siblings}
+        />
+        <LinkList id="entry-related" heading={ENTRIES_COPY.seeAlso} entries={related} />
+
+        <p className="mt-12">
+          <Link href={ENTRIES.path} className={linkClass}>
+            ← {ENTRIES_COPY.backTo} {ENTRIES.label.toLowerCase()}
+          </Link>
+        </p>
+      </main>
+    </div>
+  );
+};
